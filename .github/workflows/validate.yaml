@@ -28,7 +28,8 @@ jobs:
       - run: .artifacts/bin/tflint --init && .artifacts/bin/tflint --recursive
       - run: pip install checkov==3.3.29
       - run: checkov -d . --framework terraform --compact
-      - run: .artifacts/bin/trivy config --ignorefile .trivyignore.yaml --exit-code 1 --severity HIGH,CRITICAL --skip-dirs .venv --skip-dirs .terraform --skip-dirs .artifacts --skip-dirs examples/apps/target .
+      - run: .artifacts/bin/trivy config --ignorefile .trivyignore.yaml --exit-code 1 --severity HIGH,CRITICAL --skip-dirs charts --skip-dirs .venv --skip-dirs .terraform --skip-dirs .artifacts --skip-dirs examples/apps/target .
+      - run: scripts/scan_manifests.sh
       - run: .artifacts/bin/gitleaks dir . --redact --config .gitleaks.toml
   applications:
     runs-on: ubuntu-latest

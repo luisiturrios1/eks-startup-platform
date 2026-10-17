@@ -43,3 +43,27 @@ Deployment is an operator workflow only. CI has no AWS provisioning credentials,
 ## Final local rollout
 
 `scripts/local_kind.sh && .venv/bin/python scripts/local_smoke.py` passed after rebuilding the final Java 21 image. Both migration Jobs completed before application rollout. Both services passed HTTP, database-write, Valkey and S3 checks; a cross-namespace connection was denied by Calico NetworkPolicy. The local Docker/MiniStack databases, Valkey and `kind-platform-local` cluster were left running for development. Follow `local.md` for scoped cleanup.
+
+## AGENTS.md audit fixes — 2026-10-17
+
+All five audit findings are addressed in code: Karpenter tagging requires creation context or prior ownership; strict system policies precede CoreDNS/controllers; application and collector leaf certificates reload; scanner exceptions identify individual resources; and unused managed cache resources are omitted. The CoreDNS cross-root transfer, cache address moves, deletion safeguards and rollback/retention procedures are documented in `deployment.md`. No AWS state transfer or deployment was executed.
+
+| Check executed for these fixes | Result |
+|---|---|
+| `PATH="$PWD/.artifacts/bin:$PATH" scripts/validate.sh` | Passed: formatting, all environment contracts, policy checks, seven backend-disabled root initializations/validations, 25 Python tests (three opt-in Docker tests skipped), three mocked Terraform plans, all three local charts and pinned controller image checks. |
+| `.artifacts/bin/tflint --recursive` | Passed. |
+| `uv tool run --python 3.12 checkov -d . --compact -o json` | Terraform: 536 passed, zero failed, 41 scoped skips. Dockerfiles: 65 passed, zero failed, two justified runtime-health skips. Zero parsing errors. |
+| Trivy root HIGH/CRITICAL scan with `--skip-dirs charts` and the existing generated/dependency exclusions | Passed; AWS exceptions use expiring annotations on the individual resources. Missing optional/operator Terraform inputs still produce static-evaluation warnings; this is not plan validation. |
+| `scripts/scan_manifests.sh` | Passed: resolved platform, system-network, production service and migration manifests. CI now scans these rendered objects separately instead of parsing Go templates as raw Kubernetes YAML. |
+| `.artifacts/bin/gitleaks dir . --redact --config .gitleaks.toml` | No leaks found. |
+| `examples/apps/mvnw -B -f examples/apps/pom.xml test` | Two tests passed, including a real TLS handshake before/after an atomic projected-Secret symlink swap, with hostname/CA validation and no Tomcat restart. No database/emulator provisioning. |
+| Scanner isolation regression exercise | A temporary HCL fixture suppressed only its annotated approved ALB and still reported the neighboring unapproved ALB. |
+| `.venv/bin/python scripts/estimate_costs.py` | All three roots estimated without unresolved input warnings. Example capacity remains $1,078.28/month each for dev/staging and $1,231.81/month for prod, as unadjusted, incomplete CLI estimates. The known MySQL pricing-model issue, missing SNS price and 79 unspecified usage components per environment still require reconciliation; see `cost.md`. |
+
+The new network tests evaluate allowed and denied flows against rendered policy objects, including DNS/API bootstrapping, webhooks, kubelet metrics, Pod Identity, telemetry and rejected Internet/metadata access. These tests do not emulate VPC CNI eBPF or prove AWS packet paths. Cache plans cover all consumers enabled, all disabled, and mixed permissions; IAM assertions cover creation-only tagging and immutable ownership keys on updates.
+
+The configured examples still request cache, so these fixes introduce no additional billable capacity and do not claim a measured cache saving. With no consumers, a new environment has no managed Valkey nodes/users/subnet group/alarm. Existing cache retirement remains deliberately blocked until its data-retention/deletion review.
+
+No AWS plan, apply, destroy, import, state removal/migration, regional preflight or live acceptance check was executed. Docker/MiniStack and Maven integration suites were not rerun: these changes were checked without sharing or provisioning emulator infrastructure on the active Docker daemon. Existing deployments require the explicitly authorized CoreDNS ownership transfer before the complete new roots can be applied. Review actual plans for replacements/deletions and confirm DNS, controller connectivity, TLS renewal and cache behavior in AWS before deployment approval.
+
+Design references: [Karpenter tagging boundaries](https://karpenter.sh/v1.15/reference/cloudformation/), [AWS strict network-policy requirements](https://docs.aws.amazon.com/eks/latest/userguide/cni-network-policy-configure.html), [Spring Boot PEM reload](https://docs.spring.io/spring-boot/3.5/reference/features/ssl.html), [collector TLS reload](https://github.com/open-telemetry/opentelemetry-collector/blob/main/config/configtls/README.md), and [Trivy resource-scoped exceptions](https://trivy.dev/docs/latest/guide/scanner/misconfiguration/config/config/).

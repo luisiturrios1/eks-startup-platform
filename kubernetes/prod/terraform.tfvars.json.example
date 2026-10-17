@@ -17,7 +17,10 @@
       "ManagedBy": "Terraform",
       "Owner": "REPLACE",
       "CostCenter": "REPLACE"
-    }
+    },
+    "account_id": "333333333333",
+    "coredns_version": "REPLACE_WITH_PREFLIGHT_VERSION",
+    "service_cidr": "172.20.0.0/16"
   },
   "ami_id": "ami-REPLACE",
   "images": {

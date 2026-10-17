@@ -1,4 +1,25 @@
+# No pods or admission webhooks are needed to install this bootstrap chart.
+resource "helm_release" "network" {
+  name             = "platform-network"
+  namespace        = "cert-manager"
+  create_namespace = true
+  chart            = "../../charts/system-network"
+  wait             = true
+  atomic           = true
+  values           = [yamlencode({ vpcCidr = var.platform.vpc_cidr, serviceCidr = var.platform.service_cidr, dnsResolver = cidrhost(var.platform.vpc_cidr, 2) })]
+}
+
+resource "aws_eks_addon" "coredns" {
+  cluster_name                = var.platform.cluster_name
+  addon_name                  = "coredns"
+  addon_version               = var.platform.coredns_version
+  resolve_conflicts_on_create = "OVERWRITE"
+  depends_on                  = [helm_release.network]
+  lifecycle { prevent_destroy = true }
+}
+
 resource "helm_release" "cert_manager" {
+  depends_on       = [aws_eks_addon.coredns]
   name             = "cert-manager"
   namespace        = "cert-manager"
   create_namespace = true
@@ -14,6 +35,7 @@ resource "helm_release" "cert_manager" {
 }
 
 resource "helm_release" "karpenter" {
+  depends_on      = [aws_eks_addon.coredns]
   name            = "karpenter"
   namespace       = "kube-system"
   chart           = "../../.artifacts/karpenter-1.15.0.tgz"
@@ -28,6 +50,7 @@ resource "helm_release" "karpenter" {
 }
 
 resource "helm_release" "load_balancer" {
+  depends_on      = [aws_eks_addon.coredns]
   name            = "aws-load-balancer-controller"
   namespace       = "kube-system"
   chart           = "../../.artifacts/aws-load-balancer-controller-3.6.0.tgz"
@@ -42,6 +65,7 @@ resource "helm_release" "load_balancer" {
 }
 
 resource "helm_release" "metrics" {
+  depends_on      = [aws_eks_addon.coredns]
   name            = "metrics-server"
   namespace       = "kube-system"
   chart           = "../../.artifacts/metrics-server-3.13.0.tgz"
@@ -63,7 +87,7 @@ resource "helm_release" "platform" {
   timeout         = 600
   atomic          = true
   cleanup_on_fail = true
-  values          = [yamlencode({ clusterName = var.platform.cluster_name, region = var.platform.region, instanceProfile = var.platform.instance_profile, nodeSecurityGroup = var.platform.node_security_group, vpcCidr = var.platform.vpc_cidr, amiId = var.ami_id, logGroup = var.platform.log_group, tags = var.platform.tags, images = { otel = "${var.images["otel"].repository}@${var.images["otel"].digest}", fluentBit = "${var.images["fluent-bit"].repository}@${var.images["fluent-bit"].digest}" } })]
+  values          = [yamlencode({ clusterName = var.platform.cluster_name, region = var.platform.region, instanceProfile = var.platform.instance_profile, nodeSecurityGroup = var.platform.node_security_group, vpcCidr = var.platform.vpc_cidr, serviceCidr = var.platform.service_cidr, amiId = var.ami_id, logGroup = var.platform.log_group, tags = var.platform.tags, images = { otel = "${var.images["otel"].repository}@${var.images["otel"].digest}", fluentBit = "${var.images["fluent-bit"].repository}@${var.images["fluent-bit"].digest}" } })]
   depends_on      = [helm_release.cert_manager, helm_release.karpenter, helm_release.load_balancer, helm_release.metrics]
   postrender {
     binary_path = "../../scripts/helm_postrender.py"

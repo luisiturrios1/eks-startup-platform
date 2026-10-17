@@ -1,0 +1,5 @@
+apiVersion: v2
+name: system-network
+description: Bootstrap allow policies for strict VPC CNI enforcement
+type: application
+version: 0.1.0

@@ -65,10 +65,23 @@ output "log_group" {
 
 output "services" {
   description = "services"
-  value       = { for k, v in var.services : k => merge(v, { secret_arn = aws_secretsmanager_secret.runtime[k].arn, migration_secret_arn = aws_secretsmanager_secret.migration[k].arn, target_group_arn = aws_lb_target_group.service[k].arn, bucket = try(aws_s3_bucket.service[k].id, ""), cache_host = aws_elasticache_replication_group.this.primary_endpoint_address, cache_user = try(aws_elasticache_user.service[k].user_name, ""), cache_resource = aws_elasticache_replication_group.this.id }) }
+  value       = { for k, v in var.services : k => merge(v, { secret_arn = aws_secretsmanager_secret.runtime[k].arn, migration_secret_arn = aws_secretsmanager_secret.migration[k].arn, target_group_arn = aws_lb_target_group.service[k].arn, bucket = try(aws_s3_bucket.service[k].id, ""), cache_host = v.permissions.cache ? aws_elasticache_replication_group.this[0].primary_endpoint_address : "", cache_user = try(aws_elasticache_user.service[k].user_name, ""), cache_resource = v.permissions.cache ? aws_elasticache_replication_group.this[0].id : "" }) }
 }
 
 output "tags" {
   description = "Standard allocation and ownership tags for controller-created resources."
   value       = local.common_tags
+}
+
+output "account_id" {
+  description = "Expected account for Kubernetes-root add-on management."
+  value       = var.account_id
+}
+output "coredns_version" {
+  description = "Region-verified CoreDNS add-on version installed after system policies."
+  value       = var.addons["coredns"]
+}
+output "service_cidr" {
+  description = "Kubernetes service IPv4 CIDR for explicit API egress policies."
+  value       = aws_eks_cluster.this.kubernetes_network_config[0].service_ipv4_cidr
 }

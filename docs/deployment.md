@@ -33,12 +33,38 @@ The infrastructure root may contact public AWS **management** APIs from the oper
 
 1. Connect the administrator Client VPN. Confirm private API connectivity and expected IAM principal. Bootstrap EKS kubeconfig for the exact cluster/region.
 2. Export `terraform output -json platform` to an ignored `build/<environment>/infrastructure.json`, then run `scripts/export_values.py FILE --environment ENV`. This produces non-secret platform/service inputs. Keep credentials and secret values out of outputs.
-3. Populate Kubernetes root image digests, pinned AMI ID and backend. Supply exported platform values using `-var-file`; review and authorize that root's plan. It installs cert-manager, Karpenter, the restricted TargetGroupBinding controller, metrics-server and telemetry. The post-renderer rejects non-ECR or unpinned controller images.
+3. Populate Kubernetes root image digests, pinned AMI ID and backend. Supply exported platform values using `-var-file`; review and authorize that root's plan. It first installs the `platform-network` bootstrap chart in the existing/created `cert-manager` namespace. This chart contains only NetworkPolicy objects and needs no working cluster DNS or admission webhook. Managed CoreDNS is then installed, followed by cert-manager, Karpenter, the restricted TargetGroupBinding controller, metrics-server and telemetry. Telemetry policies are installed with the platform chart. Strict VPC CNI enforcement stays enabled throughout. The post-renderer rejects non-ECR or unpinned controller images.
 4. Invoke the credential manager explicitly with `{"action":"bootstrap"}` after reviewing the environment and function name. This creates only service-scoped database users/secrets, not application schemas. Scheduled rotation uses alternating users and retains previous credentials during handover.
 5. Run `scripts/deploy-service.sh --approved VALUES.json EXPECTED_KUBECTL_CONTEXT` only after approving the application release. Initial prerequisites are installed before the separate migration release. A failed migration stops rollout; existing workloads are retained. Inspect and fix forward rather than automatically reversing schema changes.
 6. Confirm certificate readiness, target-group health, VPN access restrictions, telemetry and the AWS acceptance checklist below. Confirm email alarm subscriptions.
 
 Applications poll their secret every minute, validate a replacement pool, switch traffic and retire the previous pool after a grace period. Rotation failures retain current credentials and pending versions for retry; CloudWatch alarms and the DLQ require operator attention. PostgreSQL database ownership is distinct from alternating login roles.
+
+## Upgrading an existing deployment
+
+This release changes CoreDNS state ownership and cache resource addresses. Do not apply either root to an existing deployment until the corresponding plans and the following recovery steps have been reviewed. No state operation is automated or authorized by this runbook.
+
+### CoreDNS ownership transfer
+
+The old address is `module.platform.aws_eks_addon.runtime["coredns"]` in the infrastructure state; the new address is `aws_eks_addon.coredns` in the Kubernetes state. Existing infrastructure plans intentionally fail the deletion safeguard while the old address remains. Do not remove that safeguard to force deletion/recreation.
+
+1. Obtain explicit authorization for the environment and cross-root state transfer. Verify both account/backend/workspace identities, pause concurrent operator runs and prepare access-restricted recovery copies of both remote states, including their version identifiers. Never commit or publish these copies.
+2. Prepare the Kubernetes inputs with the expected account, approved CoreDNS version and actual service CIDR verified through read-only STS/EKS queries; old saved outputs do not yet contain these new fields. Install the new bootstrap policy release through a reviewed Kubernetes-root plan before transferring ownership. Existing EKS-managed CoreDNS must remain running. A first-install plan at the new address must not be applied over an already managed add-on; use a separately reviewed, explicitly authorized bootstrap-only operation if policies are not already installed (plan only `helm_release.network`, inspect its scope, and obtain approval before applying the saved plan).
+3. Under the approved state-transfer procedure, remove the old state ownership without destroying the add-on, then adopt the same existing `CLUSTER:coredns` add-on at the new address. Such state removal/import requires its own explicit authorization; never run it as a deployment side effect. Record the identifiers and state versions before and after the transfer.
+4. Re-export infrastructure outputs, including account ID, service CIDR and approved CoreDNS version. Review both complete plans: the add-on must have exactly one state owner and no destroy/recreate operation. Inspect any version update separately, then authorize the intended deployment.
+5. If transfer fails, stop deployment. With operator authorization and locked, verified backends, restore the previous ownership using the recovery copies/version identifiers, ensuring only one root owns CoreDNS. Do not delete the live add-on. Confirm DNS and controller health before releasing the change freeze.
+
+New deployments need no state transfer: infrastructure creates the nodes and Pod Identity agent, then the Kubernetes root installs the allow policies before CoreDNS or controllers. The three Kubernetes roots now also pin the AWS provider and restrict it to the exported account ID. Kubernetes AWS management calls run from the operator machine; workload network isolation does not change.
+
+### Cache address changes and retirement
+
+`moved` blocks preserve the subnet group, disabled default user, user group, replication group and memory alarm when their addresses gain `[0]`. When a consumer remains, the expected plan contains address moves rather than cache replacement. Service user addresses remain stable.
+
+When all services set `permissions.cache=false`, a new environment creates no managed cache resources. For an existing cache, `prevent_destroy` intentionally blocks removal or replacement of the replication group. Before an explicitly authorized retirement: verify no clients remain, stop cache writes, decide whether data is disposable or must be retained, create and verify the approved backup/snapshot and retention period, and document a tested restore/endpoint rollback path. Keep at least one consumer configured until that review is complete. Only then authorize a separate change to the deletion safeguard and review the full removal plan. Re-adding consumers after removal creates a new cache; Terraform does not restore data automatically.
+
+### Leaf TLS renewal
+
+The application PEM bundle opts into reload and uses explicit filesystem resource locations. Its test swaps Kubernetes-style `..data` certificate/key symlinks atomically and verifies a new serial over a hostname-validated TLS connection without restarting Tomcat. The telemetry receiver also reloads its certificate/key every minute. Live acceptance must confirm projected Secret updates and served serials for application and telemetry endpoints. Root CA replacement still requires the trust-distribution/rollover procedure below.
 
 ## AWS acceptance and recovery
 

@@ -1,13 +1,7 @@
+# AWS exceptions are expiring inline resource annotations.
+# This file contains exactly the one DaemonSet named in the exception.
 misconfigurations:
-  - id: AVD-AWS-0053
-    paths: [modules/platform/main.tf]
-    statement: "Public HTTPS ALB with WAF is explicitly required; targets and EKS remain private."
-    expired_at: 2027-01-16
   - id: AVD-KSV-0118
-    paths: [charts/platform/templates/telemetry.yaml]
-    statement: "Fluent Bit requires UID 0 to read root-owned host logs; mount is read-only, capabilities dropped, privilege escalation disabled, seccomp enabled."
-    expired_at: 2027-01-16
-  - id: AVD-AWS-0132
-    paths: [bootstrap/audit.tf]
-    statement: "Audit bucket also receives S3 access logs using SSE-S3; CloudTrail explicitly encrypts its objects with a CMK."
+    paths: [charts/platform/templates/fluent-bit-daemonset.yaml]
+    statement: "Only amazon-cloudwatch/fluent-bit: UID 0 reads host logs with read-only mounts, dropped capabilities, no privilege escalation and seccomp. See docs/security-exceptions.md."
     expired_at: 2027-01-16

@@ -3,8 +3,18 @@ mock_provider "aws" {
   mock_data "aws_partition" { defaults = { partition = "aws" } }
   mock_data "aws_availability_zones" { defaults = { names = ["us-east-1a", "us-east-1b", "us-east-1c"] } }
   mock_resource "aws_kms_key" { defaults = { arn = "arn:aws:kms:us-east-1:111111111111:key/00000000-0000-0000-0000-000000000000" } }
-  mock_resource "aws_iam_role" { defaults = { arn = "arn:aws:iam::111111111111:role/mock" } }
-  mock_resource "aws_eks_cluster" { defaults = { arn = "arn:aws:eks:us-east-1:111111111111:cluster/test", identity = [{ oidc = [{ issuer = "https://oidc.eks.us-east-1.amazonaws.com/id/TEST" }] }] } }
+  mock_resource "aws_iam_role" {
+    override_during = plan
+    defaults        = { arn = "arn:aws:iam::111111111111:role/mock" }
+  }
+  mock_resource "aws_eks_cluster" {
+    override_during = plan
+    defaults        = { certificate_authority = [{ data = "dGVzdA==" }], arn = "arn:aws:eks:us-east-1:111111111111:cluster/test", identity = [{ oidc = [{ issuer = "https://oidc.eks.us-east-1.amazonaws.com/id/TEST" }] }] }
+  }
+  mock_resource "aws_sqs_queue" {
+    override_during = plan
+    defaults        = { arn = "arn:aws:sqs:us-east-1:111111111111:test" }
+  }
   mock_resource "aws_cloudwatch_log_group" { defaults = { arn = "arn:aws:logs:us-east-1:111111111111:log-group:test" } }
 }
 variables {
@@ -45,9 +55,29 @@ run "private_platform" {
     error_message = "Domain database placement is incorrect."
   }
   assert {
-    condition     = aws_elasticache_replication_group.this.engine == "valkey" && aws_elasticache_replication_group.this.transit_encryption_enabled
+    condition     = aws_elasticache_replication_group.this[0].engine == "valkey" && aws_elasticache_replication_group.this[0].transit_encryption_enabled
     error_message = "Managed Valkey TLS required."
   }
+  assert {
+    condition = alltrue([
+      for statement in jsondecode(aws_iam_role_policy.karpenter.policy).Statement :
+      !try(contains(statement.Action, "ec2:CreateTags"), statement.Action == "ec2:CreateTags") ||
+      try(length(statement.Condition.StringEquals["ec2:CreateAction"]) > 0, false) ||
+      (try(statement.Condition.StringEquals["aws:ResourceTag/kubernetes.io/cluster/startup-dev"] == "owned", false) &&
+        try(statement.Condition.StringLike["aws:ResourceTag/karpenter.sh/nodepool"] == "*", false) &&
+      try(alltrue([for key in statement.Condition["ForAllValues:StringEquals"]["aws:TagKeys"] : contains(["Name", "karpenter.sh/nodeclaim", "eks:eks-cluster-name"], key)]), false))
+    ])
+    error_message = "Every emitted CreateTags grant must prevent unrelated resources gaining deletion-authorizing ownership."
+  }
+  assert {
+    condition     = local.karpenter_tagging_statements[0].Condition.StringEquals["ec2:CreateAction"] == ["RunInstances", "CreateFleet", "CreateLaunchTemplate"]
+    error_message = "CreateTags must only set ownership tags during resource creation."
+  }
+  assert {
+    condition     = local.karpenter_tagging_statements[1].Condition.StringEquals["aws:ResourceTag/kubernetes.io/cluster/startup-dev"] == "owned" && local.karpenter_tagging_statements[1].Condition.StringLike["aws:ResourceTag/karpenter.sh/nodepool"] == "*" && alltrue([for key in local.karpenter_tagging_statements[1].Condition["ForAllValues:StringEquals"]["aws:TagKeys"] : !contains(["kubernetes.io/cluster/startup-dev", "karpenter.sh/nodepool"], key)])
+    error_message = "Existing instances require prior ownership and cannot gain ownership/deletion tags through tag updates."
+  }
+
 }
 
 run "optional_permissions_disabled" {
@@ -56,7 +86,28 @@ run "optional_permissions_disabled" {
     services = { "auth-service" = { "apiVersion" = "platform/v1", "name" = "auth-service", "domain" = "auth", "image" = "111111111111.dkr.ecr.us-east-1.amazonaws.com/example@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "port" = 8443, "resources" = { "requests" = { "cpu" = "250m", "memory" = "512Mi" }, "limits" = { "cpu" = "1000m", "memory" = "1Gi" } }, "scaling" = { "minReplicas" = 2, "maxReplicas" = 6, "cpuUtilization" = 70 }, "database" = { "placement" = "shared", "group" = "auth", "name" = "auth_service" }, "permissions" = { "s3" = [], "cache" = false }, "dependencies" = [], "migration" = { "command" = ["java", "-jar", "/app/app.jar", "--spring.profiles.active=migration"] }, "database_key" = "shared-auth", "engine" = "mysql" }, "payments-service" = { "apiVersion" = "platform/v1", "name" = "payments-service", "domain" = "payments", "image" = "111111111111.dkr.ecr.us-east-1.amazonaws.com/example@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "port" = 8443, "resources" = { "requests" = { "cpu" = "250m", "memory" = "512Mi" }, "limits" = { "cpu" = "1000m", "memory" = "1Gi" } }, "scaling" = { "minReplicas" = 2, "maxReplicas" = 6, "cpuUtilization" = 70 }, "database" = { "placement" = "shared", "group" = "payments", "name" = "payments_service" }, "permissions" = { "s3" = [], "cache" = false }, "dependencies" = [], "migration" = { "command" = ["java", "-jar", "/app/app.jar", "--spring.profiles.active=migration"] }, "database_key" = "shared-payments", "engine" = "postgres" } }
   }
   assert {
-    condition     = length(aws_s3_bucket.service) == 0 && length(aws_elasticache_user.service) == 0
-    error_message = "Disabled optional service resources must not create buckets or cache users."
+    condition     = length(aws_s3_bucket.service) == 0 && length(aws_elasticache_user.service) == 0 && length(aws_elasticache_replication_group.this) == 0 && length(aws_elasticache_subnet_group.this) == 0 && length(aws_elasticache_user_group.this) == 0 && length(aws_elasticache_user.disabled) == 0 && length(aws_cloudwatch_metric_alarm.cache_memory) == 0
+    error_message = "Disabled optional service resources must not create buckets, cache infrastructure, users or alarms."
+  }
+  assert {
+    condition     = alltrue([for service in output.services : service.cache_host == "" && service.cache_resource == "" && service.cache_user == ""])
+    error_message = "Services without cache permission must not receive cache connection metadata."
+  }
+}
+
+run "mixed_cache_permissions" {
+  command = plan
+  variables {
+    services = { for name, service in var.services : name => merge(service, {
+      permissions = { s3 = service.permissions.s3, cache = name == "payments-service" }
+    }) }
+  }
+  assert {
+    condition     = length(aws_elasticache_replication_group.this) == 1 && length(aws_elasticache_user.service) == 1 && contains(keys(aws_elasticache_user.service), "payments-service")
+    error_message = "One remaining consumer must retain the shared cache and only its identity."
+  }
+  assert {
+    condition     = output.services["auth-service"].cache_host == "" && output.services["auth-service"].cache_resource == "" && output.services["auth-service"].cache_user == ""
+    error_message = "A non-consumer must not receive another service's cache connection metadata."
   }
 }

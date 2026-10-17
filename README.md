@@ -70,7 +70,7 @@ See [local setup](docs/local.md). MiniStack is the AWS emulator; there is no Loc
 
 See [deployment runbook](docs/deployment.md), [service DSL](docs/service-dsl.md), and [cost model](docs/cost.md). Example account IDs, certificates, image references and add-on versions are intentionally non-deployable placeholders. No credentials, state, plan files or secret values should be committed.
 
-Production and non-production accounts must differ. Every environment has its own VPC, cluster, database groups, cache and state. Region defaults to `us-east-1`; portability is subject to the selected region's capabilities, checked by the read-only preflight.
+Production and non-production accounts must differ. Every environment has its own VPC, cluster, database groups and state; cache is provisioned only when requested by a service. Region defaults to `us-east-1`; portability is subject to the selected region's capabilities, checked by the read-only preflight.
 
 These applications are integration examples, not a production payment processor or identity provider. Their demo write endpoints are unauthenticated; replace them with business applications and authentication before exposing real data.
 

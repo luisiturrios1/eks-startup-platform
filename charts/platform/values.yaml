@@ -10,3 +10,4 @@ images:
   fluentBit: example.invalid/fluent-bit@sha256:0000000000000000000000000000000000000000000000000000000000000000
 
 tags: {Environment: dev, Project: startup, ManagedBy: Terraform, Owner: platform-team, CostCenter: engineering}
+serviceCidr: 172.20.0.0/16

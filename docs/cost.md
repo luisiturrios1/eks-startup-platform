@@ -9,7 +9,7 @@
 | VPC endpoints | 14 interface services × 3 AZs, plus endpoint data processing; S3 gateway is separate |
 | VPN | Three subnet associations and connected-client usage |
 | RDS | One instance per used domain group plus every dedicated service; two default groups; production Multi-AZ, gp3 storage with a 3× growth ceiling, backups and monitoring |
-| ElastiCache | One managed Valkey deployment per environment; one non-production node, two production nodes plus snapshots |
+| ElastiCache | Created only when at least one service requests cache permission; one non-production node or two production nodes, plus snapshots. No cache nodes/users/subnet group/alarm when there are no consumers. Existing cache removal requires backup/retention review and a separately approved deletion-guard change. |
 | Edge | ALB hours/LCUs, WAF ACL/rules/requests, DNS queries and Internet egress |
 | Observability | Logs ingestion, retention, CloudWatch metrics/alarms, X-Ray traces, VPC flow logs, RDS monitoring and CloudTrail events |
 | Storage/security | S3 objects/noncurrent versions/access logs, ECR images/scanning, Secrets Manager API/secret charges, KMS requests/keys and Lambda rotation |

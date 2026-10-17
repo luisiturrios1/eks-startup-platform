@@ -9,3 +9,9 @@ provider "helm" {
     }
   }
 }
+
+provider "aws" {
+  region              = var.platform.region
+  allowed_account_ids = [var.platform.account_id]
+  default_tags { tags = var.platform.tags }
+}

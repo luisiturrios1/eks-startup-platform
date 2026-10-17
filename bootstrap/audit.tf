@@ -17,6 +17,7 @@ resource "aws_s3_bucket_versioning" "audit" {
   bucket = aws_s3_bucket.audit.id
   versioning_configuration { status = "Enabled" }
 }
+# trivy:ignore:AVD-AWS-0132:exp:2027-01-16 -- SSE-S3 access-log destination; CloudTrail objects additionally use KMS. See docs/security-exceptions.md.
 resource "aws_s3_bucket_server_side_encryption_configuration" "audit" {
   bucket = aws_s3_bucket.audit.id
   rule {

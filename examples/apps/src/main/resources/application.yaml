@@ -59,8 +59,9 @@ spring:
     bundle:
       pem:
         service:
+          reload-on-update: true
           keystore:
-            certificate: ${TLS_CERT:/etc/service-tls/tls.crt}
-            private-key: ${TLS_KEY:/etc/service-tls/tls.key}
+            certificate: ${TLS_CERT:file:/etc/service-tls/tls.crt}
+            private-key: ${TLS_KEY:file:/etc/service-tls/tls.key}
           truststore:
-            certificate: ${TLS_CA:/etc/service-tls/ca.crt}
+            certificate: ${TLS_CA:file:/etc/service-tls/ca.crt}

@@ -1,9 +1,10 @@
 locals {
-  common_tags = { Environment = var.environment, Project = var.project_name, ManagedBy = "Terraform", Owner = var.owner, CostCenter = var.cost_center }
-  name        = "${var.project_name}-${var.environment}"
-  production  = var.environment == "prod"
-  partition   = data.aws_partition.current.partition
-  trust_pods  = jsonencode({ Version = "2012-10-17", Statement = [{ Effect = "Allow", Principal = { Service = "pods.eks.amazonaws.com" }, Action = ["sts:AssumeRole", "sts:TagSession"], Condition = { StringEquals = { "aws:SourceAccount" = var.account_id }, ArnEquals = { "aws:SourceArn" = aws_eks_cluster.this.arn } } }] })
+  common_tags   = { Environment = var.environment, Project = var.project_name, ManagedBy = "Terraform", Owner = var.owner, CostCenter = var.cost_center }
+  name          = "${var.project_name}-${var.environment}"
+  production    = var.environment == "prod"
+  cache_enabled = anytrue([for service in var.services : service.permissions.cache])
+  partition     = data.aws_partition.current.partition
+  trust_pods    = jsonencode({ Version = "2012-10-17", Statement = [{ Effect = "Allow", Principal = { Service = "pods.eks.amazonaws.com" }, Action = ["sts:AssumeRole", "sts:TagSession"], Condition = { StringEquals = { "aws:SourceAccount" = var.account_id }, ArnEquals = { "aws:SourceArn" = aws_eks_cluster.this.arn } } }] })
 }
 
 data "aws_partition" "current" {
@@ -146,6 +147,9 @@ resource "aws_eks_cluster" "this" {
   role_arn                  = aws_iam_role.cluster.arn
   version                   = var.kubernetes_version
   enabled_cluster_log_types = ["api", "audit", "authenticator", "controllerManager", "scheduler"]
+  kubernetes_network_config {
+    ip_family = "ipv4"
+  }
   access_config {
     authentication_mode                         = "API"
     bootstrap_cluster_creator_admin_permissions = false
@@ -272,11 +276,13 @@ resource "aws_eks_addon" "proxy" {
 }
 
 resource "aws_eks_addon" "runtime" {
-  for_each      = toset(["coredns", "eks-pod-identity-agent"])
+  for_each      = toset(["eks-pod-identity-agent"])
   cluster_name  = aws_eks_cluster.this.name
   addon_name    = each.key
   addon_version = var.addons[each.key]
   depends_on    = [aws_eks_node_group.system]
+  # Protect the old CoreDNS instance until an explicitly authorized cross-root transfer.
+  lifecycle { prevent_destroy = true }
 }
 
 resource "aws_db_subnet_group" "this" {
@@ -358,11 +364,13 @@ resource "aws_secretsmanager_secret" "migration" {
 }
 
 resource "aws_elasticache_subnet_group" "this" {
+  count      = local.cache_enabled ? 1 : 0
   name       = local.name
   subnet_ids = module.network.database_subnets
 }
 
 resource "aws_elasticache_user" "disabled" {
+  count         = local.cache_enabled ? 1 : 0
   user_id       = "${local.name}-default"
   user_name     = "default"
   engine        = "valkey"
@@ -384,12 +392,14 @@ resource "aws_elasticache_user" "service" {
 }
 
 resource "aws_elasticache_user_group" "this" {
+  count         = local.cache_enabled ? 1 : 0
   engine        = "valkey"
   user_group_id = local.name
-  user_ids      = concat([aws_elasticache_user.disabled.user_id], [for u in aws_elasticache_user.service : u.user_id])
+  user_ids      = concat([aws_elasticache_user.disabled[0].user_id], [for u in aws_elasticache_user.service : u.user_id])
 }
 
 resource "aws_elasticache_replication_group" "this" {
+  count                      = local.cache_enabled ? 1 : 0
   replication_group_id       = local.name
   description                = "AWS-managed per-environment Valkey"
   engine                     = "valkey"
@@ -399,16 +409,17 @@ resource "aws_elasticache_replication_group" "this" {
   automatic_failover_enabled = local.production
   multi_az_enabled           = local.production
   port                       = 6379
-  subnet_group_name          = aws_elasticache_subnet_group.this.name
+  subnet_group_name          = aws_elasticache_subnet_group.this[0].name
   security_group_ids         = [module.network.security_groups.cache]
   at_rest_encryption_enabled = true
   kms_key_id                 = aws_kms_key.platform.arn
   transit_encryption_enabled = true
   transit_encryption_mode    = "required"
-  user_group_ids             = [aws_elasticache_user_group.this.user_group_id]
+  user_group_ids             = [aws_elasticache_user_group.this[0].user_group_id]
   snapshot_retention_limit   = 7
   auto_minor_version_upgrade = true
   apply_immediately          = false
+  lifecycle { prevent_destroy = true }
 }
 
 resource "aws_s3_bucket" "service" {
@@ -587,7 +598,7 @@ resource "aws_eks_pod_identity_association" "telemetry" {
 resource "aws_iam_role_policy" "runtime" {
   for_each = var.services
   role     = aws_iam_role.runtime[each.key].id
-  policy   = jsonencode({ Version = "2012-10-17", Statement = concat([{ Effect = "Allow", Action = ["secretsmanager:GetSecretValue", "secretsmanager:DescribeSecret"], Resource = concat([aws_secretsmanager_secret.runtime[each.key].arn], each.value.secretReferences) }, { Effect = "Allow", Action = "kms:Decrypt", Resource = aws_kms_key.platform.arn, Condition = { StringEquals = { "kms:ViaService" = "secretsmanager.${var.region}.amazonaws.com" } } }], [for statement in [{ Effect = "Allow", Action = "s3:ListBucket", Resource = try(aws_s3_bucket.service[each.key].arn, "") }, { Effect = "Allow", Action = concat(contains(each.value.permissions.s3, "read") ? ["s3:GetObject"] : [], contains(each.value.permissions.s3, "write") ? ["s3:PutObject"] : []), Resource = "${try(aws_s3_bucket.service[each.key].arn, "")}/*" }, { Effect = "Allow", Action = ["kms:Decrypt", "kms:GenerateDataKey"], Resource = aws_kms_key.platform.arn, Condition = { StringEquals = { "kms:ViaService" = "s3.${var.region}.amazonaws.com" } } }] : statement if length(each.value.permissions.s3) > 0], each.value.permissions.cache ? [{ Effect = "Allow", Action = "elasticache:Connect", Resource = [aws_elasticache_replication_group.this.arn, aws_elasticache_user.service[each.key].arn] }] : []) })
+  policy   = jsonencode({ Version = "2012-10-17", Statement = concat([{ Effect = "Allow", Action = ["secretsmanager:GetSecretValue", "secretsmanager:DescribeSecret"], Resource = concat([aws_secretsmanager_secret.runtime[each.key].arn], each.value.secretReferences) }, { Effect = "Allow", Action = "kms:Decrypt", Resource = aws_kms_key.platform.arn, Condition = { StringEquals = { "kms:ViaService" = "secretsmanager.${var.region}.amazonaws.com" } } }], [for statement in [{ Effect = "Allow", Action = "s3:ListBucket", Resource = try(aws_s3_bucket.service[each.key].arn, "") }, { Effect = "Allow", Action = concat(contains(each.value.permissions.s3, "read") ? ["s3:GetObject"] : [], contains(each.value.permissions.s3, "write") ? ["s3:PutObject"] : []), Resource = "${try(aws_s3_bucket.service[each.key].arn, "")}/*" }, { Effect = "Allow", Action = ["kms:Decrypt", "kms:GenerateDataKey"], Resource = aws_kms_key.platform.arn, Condition = { StringEquals = { "kms:ViaService" = "s3.${var.region}.amazonaws.com" } } }] : statement if length(each.value.permissions.s3) > 0], each.value.permissions.cache ? [{ Effect = "Allow", Action = "elasticache:Connect", Resource = [aws_elasticache_replication_group.this[0].arn, aws_elasticache_user.service[each.key].arn] }] : []) })
 }
 
 resource "aws_iam_role_policy" "migration" {
@@ -601,11 +612,6 @@ resource "aws_iam_role_policy" "credentials" {
   #checkov:skip=CKV_AWS_355:EC2 ENI discovery requires Resource wildcard; credential operations are ARN-scoped. See docs/security-exceptions.md.
   role   = aws_iam_role.credentials.id
   policy = jsonencode({ Version = "2012-10-17", Statement = [{ Effect = "Allow", Action = ["secretsmanager:GetSecretValue", "secretsmanager:DescribeSecret"], Resource = concat([for d in aws_db_instance.this : d.master_user_secret[0].secret_arn], [for s in aws_secretsmanager_secret.runtime : s.arn], [for s in aws_secretsmanager_secret.migration : s.arn]) }, { Effect = "Allow", Action = ["secretsmanager:PutSecretValue", "secretsmanager:UpdateSecretVersionStage"], Resource = concat([for s in aws_secretsmanager_secret.runtime : s.arn], [for s in aws_secretsmanager_secret.migration : s.arn]) }, { Effect = "Allow", Action = ["kms:Decrypt", "kms:GenerateDataKey"], Resource = aws_kms_key.platform.arn }, { Effect = "Allow", Action = ["ec2:CreateNetworkInterface", "ec2:DescribeNetworkInterfaces", "ec2:DeleteNetworkInterface", "ec2:AssignPrivateIpAddresses", "ec2:UnassignPrivateIpAddresses"], Resource = "*" }, { Effect = "Allow", Action = ["logs:CreateLogStream", "logs:PutLogEvents"], Resource = "${aws_cloudwatch_log_group.credentials.arn}:*" }] })
-}
-
-resource "aws_iam_role_policy" "karpenter" {
-  role   = aws_iam_role.karpenter.id
-  policy = jsonencode({ Version = "2012-10-17", Statement = [{ Effect = "Allow", Action = ["ec2:Describe*", "ssm:GetParameter"], Resource = "*", Condition = { StringEquals = { "aws:RequestedRegion" = var.region } } }, { Effect = "Allow", Action = ["ec2:RunInstances", "ec2:CreateFleet"], Resource = ["arn:${local.partition}:ec2:${var.region}::image/*", "arn:${local.partition}:ec2:${var.region}::snapshot/*", "arn:${local.partition}:ec2:${var.region}:${var.account_id}:subnet/*", "arn:${local.partition}:ec2:${var.region}:${var.account_id}:security-group/*"] }, { Effect = "Allow", Action = ["ec2:RunInstances", "ec2:CreateFleet", "ec2:CreateLaunchTemplate"], Resource = ["arn:${local.partition}:ec2:${var.region}:${var.account_id}:instance/*", "arn:${local.partition}:ec2:${var.region}:${var.account_id}:volume/*", "arn:${local.partition}:ec2:${var.region}:${var.account_id}:network-interface/*", "arn:${local.partition}:ec2:${var.region}:${var.account_id}:fleet/*", "arn:${local.partition}:ec2:${var.region}:${var.account_id}:spot-instances-request/*", "arn:${local.partition}:ec2:${var.region}:${var.account_id}:launch-template/*"], Condition = { StringEquals = { "aws:RequestTag/kubernetes.io/cluster/${local.name}" = "owned" }, StringLike = { "aws:RequestTag/karpenter.sh/nodepool" = "*" } } }, { Effect = "Allow", Action = ["ec2:RunInstances", "ec2:CreateFleet"], Resource = "arn:${local.partition}:ec2:${var.region}:${var.account_id}:launch-template/*", Condition = { StringEquals = { "aws:ResourceTag/kubernetes.io/cluster/${local.name}" = "owned" } } }, { Effect = "Allow", Action = ["ec2:CreateTags"], Resource = "arn:${local.partition}:ec2:${var.region}:${var.account_id}:*/*", Condition = { StringEquals = { "aws:RequestTag/kubernetes.io/cluster/${local.name}" = "owned" } } }, { Effect = "Allow", Action = ["ec2:TerminateInstances", "ec2:DeleteLaunchTemplate"], Resource = ["arn:${local.partition}:ec2:${var.region}:${var.account_id}:instance/*", "arn:${local.partition}:ec2:${var.region}:${var.account_id}:launch-template/*"], Condition = { StringEquals = { "aws:ResourceTag/kubernetes.io/cluster/${local.name}" = "owned" }, StringLike = { "aws:ResourceTag/karpenter.sh/nodepool" = "*" } } }, { Effect = "Allow", Action = "iam:PassRole", Resource = aws_iam_role.karpenter_node.arn, Condition = { StringEquals = { "iam:PassedToService" = "ec2.amazonaws.com" } } }, { Effect = "Allow", Action = "eks:DescribeCluster", Resource = aws_eks_cluster.this.arn }, { Effect = "Allow", Action = ["sqs:ReceiveMessage", "sqs:DeleteMessage", "sqs:GetQueueUrl", "sqs:GetQueueAttributes"], Resource = aws_sqs_queue.interruptions.arn }] })
 }
 
 resource "aws_iam_role_policy" "load-balancer" {
@@ -686,6 +692,7 @@ resource "aws_sqs_queue_policy" "interruptions" {
   policy    = jsonencode({ Version = "2012-10-17", Statement = [{ Effect = "Allow", Principal = { Service = "events.amazonaws.com" }, Action = "sqs:SendMessage", Resource = aws_sqs_queue.interruptions.arn, Condition = { ArnEquals = { "aws:SourceArn" = aws_cloudwatch_event_rule.interruptions.arn } } }, { Effect = "Deny", Principal = "*", Action = "sqs:*", Resource = aws_sqs_queue.interruptions.arn, Condition = { Bool = { "aws:SecureTransport" = "false" } } }] })
 }
 
+# trivy:ignore:AVD-AWS-0053:exp:2027-01-16 -- Approved HTTPS edge with WAF; docs/security-exceptions.md.
 resource "aws_lb" "api" {
   #checkov:skip=CKV2_AWS_76:Attached WebACL explicitly includes AWSManagedRulesKnownBadInputsRuleSet; graph resolution false positive, also checked by platform policy.
   name                       = "${local.name}-api"
@@ -1022,6 +1029,7 @@ resource "aws_cloudwatch_metric_alarm" "db_storage" {
   treat_missing_data  = "missing"
 }
 resource "aws_cloudwatch_metric_alarm" "cache_memory" {
+  count               = local.cache_enabled ? 1 : 0
   alarm_name          = "${local.name}-cache-memory"
   namespace           = "AWS/ElastiCache"
   metric_name         = "DatabaseMemoryUsagePercentage"
@@ -1030,7 +1038,7 @@ resource "aws_cloudwatch_metric_alarm" "cache_memory" {
   evaluation_periods  = 3
   threshold           = 80
   comparison_operator = "GreaterThanThreshold"
-  dimensions          = { CacheClusterId = "${aws_elasticache_replication_group.this.id}-001", CacheNodeId = "0001" }
+  dimensions          = { CacheClusterId = "${aws_elasticache_replication_group.this[0].id}-001", CacheNodeId = "0001" }
   alarm_actions       = [aws_sns_topic.alerts.arn]
   treat_missing_data  = "missing"
 }

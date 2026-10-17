@@ -1,6 +1,6 @@
 # Reviewed scanner exceptions and permission boundaries
 
-Review by **2027-01-16**, or immediately when the associated control changes. Inline Checkov notes apply only to the named resource; Trivy exceptions are path-scoped and expire. These are design rationales, not a claim of an organizational approval. A deployment reviewer must accept the applicable residual risks.
+Review by **2027-01-16**, or immediately when the associated control changes. Inline Checkov notes apply only to the named resource/image. AWS Trivy exceptions are inline annotations on the public ALB and audit-bucket encryption configuration, with expiry. The remaining Trivy path exception names a file containing only the Fluent Bit DaemonSet; a regression test rejects additional YAML resources in that file. All exceptions retain the same review deadline. These are design rationales, not a claim of an organizational approval. A deployment reviewer must accept the applicable residual risks.
 
 | Finding | Scope and reason | Compensating control |
 |---|---|---|
@@ -16,9 +16,10 @@ Review by **2027-01-16**, or immediately when the associated control changes. In
 | S3 replication CKV_AWS_144 | Approved baseline is single-region with Multi-AZ availability | Versioning, backups and restore runbook; regional outage RPO/RTO is not promised |
 | S3 SSE-S3 CKV_AWS_145 / Trivy AWS-0132 | ALB/S3 access-log destinations require compatible server-side encryption | Private, versioned SSE-S3 buckets; CloudTrail objects are additionally KMS-encrypted; application/state buckets use KMS |
 | CloudTrail SNS CKV_AWS_252 | File-delivery SNS notifications are not required | Encrypted CloudWatch Logs integration and validated CloudTrail log files |
+| Docker HEALTHCHECK CKV_DOCKER_2 | Only `examples/apps/Dockerfile` and `components/credential-manager/Dockerfile`: Kubernetes probes and Lambda runtime supervision own health checks; Docker image health checks do not run in those runtimes | Application startup/readiness/liveness probes, Lambda errors and DLQ alarms remain enabled |
 | Fluent Bit root / host logs | Root is required to read root-owned host container logs | Read-only host mount/root filesystem, dropped capabilities, no privilege escalation, runtime-default seccomp; application pods remain restricted/non-root |
 
-AWS API Describe operations and telemetry publishing sometimes require `Resource="*"`. These appear only in controller roles. Karpenter instance creation/deletion is constrained by cluster/nodepool tags; PassRole names the node role and EC2 service. The load balancer controller only discovers resources and registers/deregisters targets in Terraform-created target groups; it cannot create public load balancers or change WAF.
+AWS API Describe operations and telemetry publishing sometimes require `Resource="*"`. These appear only in controller roles. Karpenter ownership tags can only be added during EC2 creation (`ec2:CreateAction`). Subsequent tag updates require existing cluster/nodepool ownership, permit only Name/nodeclaim/cluster-name keys, and cannot rewrite the tags that authorize deletion. Instance deletion still requires existing ownership; PassRole names the node role and EC2 service. The load balancer controller only discovers resources and registers/deregisters targets in Terraform-created target groups; it cannot create public load balancers or change WAF.
 
 Endpoint policies restrict interface access to the account, while workload IAM restricts actions/resources. S3 permits the regional ECR layer bucket in addition to account-owned objects. KMS account-root statements enable IAM delegation; application grants remain scoped. Review endpoint-specific policy support during the regional preflight/plan.
 

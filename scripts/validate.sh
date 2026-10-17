@@ -14,8 +14,10 @@ terraform -chdir=modules/platform init -backend=false -input=false
 terraform -chdir=modules/platform test
 helm lint charts/service
 helm lint charts/platform
+helm lint charts/system-network
 helm template test charts/service >/dev/null
 helm template test charts/service --set migrationOnly=true >/dev/null
 helm template test charts/platform >/dev/null
+helm template test charts/system-network >/dev/null
 
 "$python_bin" scripts/check_chart_images.py

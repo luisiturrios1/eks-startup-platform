@@ -1,0 +1,3 @@
+vpcCidr: 10.40.0.0/16
+serviceCidr: 172.20.0.0/16
+dnsResolver: 10.40.0.2

@@ -16,7 +16,7 @@ data:
         protocols:
           http:
             endpoint: 0.0.0.0:4318
-            tls: {cert_file: /etc/tls/tls.crt, key_file: /etc/tls/tls.key}
+            tls: {cert_file: /etc/tls/tls.crt, key_file: /etc/tls/tls.key, reload_interval: 1m}
       kubeletstats:
         collection_interval: 60s
         auth_type: serviceAccount
@@ -105,29 +105,6 @@ data:
         log_group_name {{ .Values.logGroup }}
         log_stream_prefix nodes-
         auto_create_group false
----
-apiVersion: apps/v1
-kind: DaemonSet
-metadata: {name: fluent-bit, namespace: amazon-cloudwatch}
-spec:
-  selector: {matchLabels: {app: fluent-bit}}
-  template:
-    metadata: {labels: {app: fluent-bit}}
-    spec:
-      serviceAccountName: telemetry
-      securityContext: {runAsUser: 0, runAsGroup: 0, seccompProfile: {type: RuntimeDefault}}
-      containers:
-        - name: logs
-          image: {{ .Values.images.fluentBit | quote }}
-          resources: {requests: {cpu: 50m, memory: 64Mi}, limits: {cpu: 200m, memory: 128Mi}}
-          securityContext: {allowPrivilegeEscalation: false, readOnlyRootFilesystem: true, capabilities: {drop: [ALL]}}
-          volumeMounts:
-            - {name: logs, mountPath: /var/log, readOnly: true}
-            - {name: config, mountPath: /fluent-bit/etc/fluent-bit.conf, subPath: fluent-bit.conf, readOnly: true}
-      volumes:
-        - {name: logs, hostPath: {path: /var/log, type: Directory}}
-        - {name: config, configMap: {name: fluent-bit}}
-
 ---
 apiVersion: cert-manager.io/v1
 kind: Certificate

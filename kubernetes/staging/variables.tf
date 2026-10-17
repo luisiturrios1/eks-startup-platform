@@ -1,5 +1,5 @@
 variable "platform" {
-  type        = object({ cluster_name = string, cluster_endpoint = string, cluster_ca = string, region = string, vpc_id = string, vpc_cidr = string, node_security_group = string, alb_security_group = string, instance_profile = string, interruption_queue = string, log_group = string, tags = map(string) })
+  type        = object({ account_id = string, coredns_version = string, service_cidr = string, cluster_name = string, cluster_endpoint = string, cluster_ca = string, region = string, vpc_id = string, vpc_cidr = string, node_security_group = string, alb_security_group = string, instance_profile = string, interruption_queue = string, log_group = string, tags = map(string) })
   description = "Non-secret outputs from the infrastructure root."
 }
 
