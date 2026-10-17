@@ -90,3 +90,9 @@ CI now uses registry-verified Linux AMD64 and macOS ARM64 provider hashes, a che
 | `scripts/estimate_costs.py --validate-only` and full `scripts/estimate_costs.py` | Both passed. Partial example estimates remain $1,078.28/month each for dev/staging and $1,231.81/month for prod. The documented missing usage/prices and MySQL support-model issue remain; these are incomplete estimates. |
 
 These updates add no AWS capacity and introduce no deployment step. No AWS plan, apply, destroy, state access or migration was performed. The CoreDNS transfer and other AWS acceptance requirements above still apply to existing deployments. Local emulator suites run serially and cannot establish AWS networking, IAM, WAF or managed-service guarantees.
+
+### PyMySQL follow-up during integration
+
+Dependabot opened PRs #16 and #17 after the component directory was added to its coverage. Both changes were also integrated with cherry-pick provenance: test and runtime requirements now use PyMySQL 1.2.3. Its [upstream changes](https://github.com/PyMySQL/PyMySQL/blob/v1.2.3/CHANGELOG.md) include SQL-escaping fixes and revised TLS negotiation; the production connector still explicitly requires certificate and hostname verification.
+
+After this update, the local Python suite passed 33 tests with three opt-in tests skipped. Three added loopback protocol tests exercise the actual production connector and reject a server without TLS, an untrusted CA with a matching hostname, and a trusted certificate with the wrong hostname before authentication. The three real SQL/Valkey permission and rotation tests passed again on a fresh isolated Docker daemon. Gitleaks and `git diff --check` passed. Both dedicated test daemons and their volumes were then removed; the user's original development containers were preserved.
