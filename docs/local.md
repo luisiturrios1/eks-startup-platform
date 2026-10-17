@@ -1,5 +1,7 @@
 # Local development and testing
 
+Use Python 3.12+ and Java 21. The examples use Spring Boot 4.1.1 and the checksum-verified Maven 3.10.0 Wrapper. The Docker build also invokes this Wrapper; its build-only, version-pinned `unzip` dependency keeps the download on the ZIP artifact covered by the Wrapper checksum. Keep both Java container stages on Java 21 when reviewing dependency updates.
+
 The Java integration suite wraps MiniStack's documented module with scoped cleanup: version 0.1.5 otherwise reaps all containers carrying its global label. Our tests remove only their own emulator container and use independently owned database fixtures. Do not add real-infrastructure mode to this wrapper without implementing ownership-scoped sidecar cleanup.
 
 ```bash
@@ -11,9 +13,9 @@ scripts/local_kind.sh
 .venv/bin/python scripts/local_smoke.py
 ```
 
-MiniStack provisions real PostgreSQL/MySQL containers through its RDS API and exercises its ElastiCache API. A separate pinned Valkey container tests the actual selected cache engine. `local_setup.py` uses only a fixed loopback AWS endpoint and test credentials; it creates separate runtime/migration users using the same provisioning code as AWS. The explicit local adapter permits local connections without production certificate verification. AWS code always verifies certificates and requires TLS.
+MiniStack provisions real PostgreSQL/MySQL containers through its RDS API and exercises its ElastiCache API. A separate pinned Valkey container tests the actual selected cache engine. `local_setup.py` uses only a fixed loopback AWS endpoint and test credentials; it waits for SQL readiness after the emulator reports RDS availability, then creates separate runtime/migration users using the same provisioning code as AWS. The explicit local adapter permits local connections without production certificate verification. AWS code always verifies certificates and requires TLS.
 
-MiniStack's real-infrastructure mode mounts the Docker socket and creates sidecars whose host ports may bind beyond loopback. Use a trusted development machine or isolated CI runner, not a shared Docker daemon. No real credentials or production data belong here. kind's pod CIDR must not overlap Docker Desktop's host-gateway addresses.
+MiniStack's real-infrastructure mode mounts the Docker socket and creates sidecars whose host ports may bind beyond loopback. Run the Maven, Python integration and kind suites serially on an isolated Docker daemon. No real credentials or production data belong here. kind's pod CIDR must not overlap Docker Desktop's host-gateway addresses.
 
 The local kind cluster uses Calico NetworkPolicy. Its app profile uses HTTP on port 8080 and direct addresses on kind's Docker network for MiniStack, database sidecars and Valkey; this works on Docker Desktop and Linux. AWS Helm deployment uses HTTPS, private endpoints and Pod Identity. Local mode is never selected by the AWS chart.
 

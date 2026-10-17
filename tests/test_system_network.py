@@ -119,7 +119,7 @@ def test_telemetry_and_application_isolation(policies):
 def test_network_policies_precede_dns_and_controllers_in_every_root():
     for environment in ['dev', 'staging', 'prod']:
         with (ROOT/'kubernetes'/environment/'main.tf').open() as stream:
-            data = hcl2.load(stream)
+            data = hcl2.load(stream, serialization_options=hcl2.utils.SerializationOptions(strip_string_quotes=True, explicit_blocks=False, with_comments=False))
         resources = {f'{kind}.{name}': body for block in data['resource']
                      for kind, names in block.items() for name, body in names.items()}
         assert resources['aws_eks_addon.coredns']['depends_on'] == ['${helm_release.network}']

@@ -16,17 +16,17 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.springframework.boot.SpringBootConfiguration;
 import org.springframework.boot.autoconfigure.EnableAutoConfiguration;
-import org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration;
-import org.springframework.boot.autoconfigure.data.redis.RedisAutoConfiguration;
+import org.springframework.boot.jdbc.autoconfigure.DataSourceAutoConfiguration;
+import org.springframework.boot.data.redis.autoconfigure.DataRedisAutoConfiguration;
 import org.springframework.boot.builder.SpringApplicationBuilder;
-import org.springframework.boot.web.servlet.context.ServletWebServerApplicationContext;
+import org.springframework.boot.web.server.servlet.context.ServletWebServerApplicationContext;
 import static org.junit.jupiter.api.Assertions.*;
 
 class TlsReloadTest {
     @TempDir Path directory;
 
     @SpringBootConfiguration
-    @EnableAutoConfiguration(exclude = {DataSourceAutoConfiguration.class, RedisAutoConfiguration.class})
+    @EnableAutoConfiguration(exclude = {DataSourceAutoConfiguration.class, DataRedisAutoConfiguration.class})
     static class Probe {}
 
     private void certificate(Path version, int serial) throws Exception {
@@ -72,7 +72,7 @@ class TlsReloadTest {
         }
         // Read the real application configuration; only external clients are excluded.
         try (var app = new SpringApplicationBuilder(Probe.class).properties(
-            "spring.main.banner-mode=off", "management.tracing.enabled=false",
+            "spring.main.banner-mode=off", "management.tracing.export.enabled=false",
             "TLS_CERT=" + directory.resolve("tls.crt").toUri(),
             "TLS_KEY=" + directory.resolve("tls.key").toUri(),
             "TLS_CA=" + directory.resolve("version1/tls.crt").toUri(),

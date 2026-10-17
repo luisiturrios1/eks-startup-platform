@@ -24,9 +24,11 @@ management:
   tracing:
     sampling:
       probability: 0.1
-  otlp:
+  opentelemetry:
     tracing:
-      endpoint: ${OTEL_EXPORTER_OTLP_TRACES_ENDPOINT:https://telemetry.amazon-cloudwatch.svc:4318/v1/traces}
+      export:
+        otlp:
+          endpoint: ${OTEL_EXPORTER_OTLP_TRACES_ENDPOINT:https://telemetry.amazon-cloudwatch.svc:4318/v1/traces}
 ---
 spring:
   config:
@@ -38,7 +40,8 @@ server:
     enabled: false
 management:
   tracing:
-    enabled: false
+    export:
+      enabled: false
 ---
 spring:
   config:
@@ -48,7 +51,8 @@ spring:
     web-application-type: none
 management:
   tracing:
-    enabled: false
+    export:
+      enabled: false
 
 ---
 spring:

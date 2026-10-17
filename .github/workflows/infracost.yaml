@@ -20,7 +20,13 @@ jobs:
         with: {python-version: '3.12'}
       - run: python -m pip install -r requirements-dev.txt
       - run: python scripts/install_tools.py --tool infracost
+      - name: Validate Dependabot cost inputs without secrets
+        if: github.actor == 'dependabot[bot]'
+        run: |
+          python scripts/estimate_costs.py --validate-only
+          echo 'Dependabot: cost inputs validated; pricing is deferred to a trusted main/manual run because Actions secrets are unavailable.' >> "$GITHUB_STEP_SUMMARY"
       - name: Estimate all environments
+        if: github.actor != 'dependabot[bot]'
         env:
           INFRACOST_API_KEY: ${{ secrets.INFRACOST_API_KEY }}
         run: |
@@ -30,7 +36,8 @@ jobs:
           fi
           python scripts/estimate_costs.py
           cat build/infracost/summary.md >> "$GITHUB_STEP_SUMMARY"
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+      - if: github.actor != 'dependabot[bot]'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         with:
           name: infracost-estimates
           path: |

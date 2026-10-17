@@ -7,7 +7,7 @@ ROOT=Path(__file__).resolve().parents[1]
 def resources(directory):
     result={}
     for file in directory.glob('*.tf'):
-        with file.open() as stream:data=hcl2.load(stream)
+        with file.open() as stream:data=hcl2.load(stream, serialization_options=hcl2.utils.SerializationOptions(strip_string_quotes=True, explicit_blocks=False, with_comments=False))
         for block in data.get('resource',[]):
             for kind,names in block.items():
                 for name,body in names.items():result[kind+'.'+name]=body

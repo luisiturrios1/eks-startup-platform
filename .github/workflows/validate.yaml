@@ -22,6 +22,13 @@ jobs:
       - uses: azure/setup-helm@9bc31f4ebc9c6b171d7bfbaa5d006ae7abdb4310
         with: {version: 'v3.19.0'}
       - run: python -m venv .venv && .venv/bin/pip install -r requirements-dev.txt
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+        with:
+          path: |
+            .artifacts/*.tgz
+            .artifacts/global-bundle.pem
+            .artifacts/calico.yaml
+          key: assets-${{ hashFiles('config/artifacts.lock.json') }}
       - run: scripts/prepare-assets.sh
       - run: scripts/validate.sh
       - run: python scripts/install_tools.py
@@ -44,6 +51,13 @@ jobs:
       - uses: azure/setup-helm@9bc31f4ebc9c6b171d7bfbaa5d006ae7abdb4310
         with: {version: 'v3.19.0'}
       - run: python -m venv .venv && .venv/bin/pip install -r requirements-dev.txt
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+        with:
+          path: |
+            .artifacts/*.tgz
+            .artifacts/global-bundle.pem
+            .artifacts/calico.yaml
+          key: assets-${{ hashFiles('config/artifacts.lock.json') }}
       - run: python scripts/install_tools.py && scripts/prepare-assets.sh
       - run: docker compose up -d --wait && .venv/bin/python scripts/local_setup.py
       - run: PLATFORM_LOCAL_INTEGRATION=1 .venv/bin/pytest -q tests/integration

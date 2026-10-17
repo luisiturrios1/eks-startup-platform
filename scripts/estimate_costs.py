@@ -75,6 +75,7 @@ def render_summary(data, input_label):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--vars-dir", type=Path, help="Use ENV.tfvars.json files from this private directory instead of repository examples")
+    parser.add_argument("--validate-only", action="store_true", help="Validate/generate all environment inputs without calling the pricing API")
     args = parser.parse_args()
     binary = ROOT / ".artifacts/bin/infracost"
     executable = str(binary) if binary.is_file() else shutil.which("infracost")
@@ -101,6 +102,9 @@ def main():
         target = output / f"{name}.tfvars.json"
         target.write_text(json.dumps(values, indent=2) + "\n")
         target.chmod(0o600)
+    if args.validate_only:
+        print("Validated cost inputs for dev, staging and prod. Pricing was not executed.")
+        return
     subprocess.run([
         executable, "breakdown", "--config-file", "infracost.yml", "--format", "json",
         "--out-file", str(report), "--no-color",

@@ -40,6 +40,16 @@ def main():
         master={"username":"local_admin","password":"local-only-password"}
 
         value={"engine":engine,"host":endpoint["Address"],"port":endpoint["Port"],"dbname":name,"username":"local_admin","password":"local-only-password"}
+        # MiniStack's RDS API can report available before the sidecar accepts SQL.
+        for attempt in range(60):
+            try:
+                connection = local_connect(cfg, master)
+                connection.close()
+                break
+            except (psycopg.OperationalError, pymysql.err.OperationalError):
+                time.sleep(1)
+        else:
+            raise RuntimeError("Local database did not become SQL-ready: " + service)
         for kind in ["runtime","migration"]:
             value["username"]=manager.user_name(service,kind,"a")
             value["password"]="local-only-"+kind

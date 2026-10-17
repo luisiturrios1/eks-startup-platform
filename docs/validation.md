@@ -67,3 +67,26 @@ The configured examples still request cache, so these fixes introduce no additio
 No AWS plan, apply, destroy, import, state removal/migration, regional preflight or live acceptance check was executed. Docker/MiniStack and Maven integration suites were not rerun: these changes were checked without sharing or provisioning emulator infrastructure on the active Docker daemon. Existing deployments require the explicitly authorized CoreDNS ownership transfer before the complete new roots can be applied. Review actual plans for replacements/deletions and confirm DNS, controller connectivity, TLS renewal and cache behavior in AWS before deployment approval.
 
 Design references: [Karpenter tagging boundaries](https://karpenter.sh/v1.15/reference/cloudformation/), [AWS strict network-policy requirements](https://docs.aws.amazon.com/eks/latest/userguide/cni-network-policy-configure.html), [Spring Boot PEM reload](https://docs.spring.io/spring-boot/3.5/reference/features/ssl.html), [collector TLS reload](https://github.com/open-telemetry/opentelemetry-collector/blob/main/config/configtls/README.md), and [Trivy resource-scoped exceptions](https://trivy.dev/docs/latest/guide/scanner/misconfiguration/config/config/).
+
+## Dependabot integration — 2026-10-17
+
+Integrated the dependency changes from PRs #1–5, #7–13 and #15, preserving their original commits/authors with cherry-pick provenance. PRs #6 and #14 were excluded because their Java 24/26 images violate the Java 21 platform contract. Dependabot ignores those two exact image proposals, and a regression check enforces Java 21 on both container stages.
+
+Spring Boot 4.1.1 required the modular MVC/OpenTelemetry starters, Jackson 3 imports, new auto-configuration packages, Testcontainers 2 modules and tracing-export configuration. The examples retain Java 21 and Flyway 11.20.3. Maven Wrapper 3.10.0 has a verified distribution checksum and is used by Docker builds. The credential-manager runtime dependencies match the updated Python test environment, including boto3 1.43.113 and psycopg 3.3.6. Policy parsing explicitly selects python-hcl2 8's compatible unquoted serialization.
+
+CI now uses registry-verified Linux AMD64 and macOS ARM64 provider hashes, a checksum-verified asset cache with bounded download retries, and secret-free Dependabot cost-input validation. Trusted main/manual runs still perform pricing. No privileged pull-request trigger or AWS provisioning credential was added. The local emulator setup waits for actual SQL readiness before provisioning users.
+
+| Check executed for the integrated dependencies | Result |
+|---|---|
+| `PATH="$PWD/.artifacts/bin:$PATH" scripts/validate.sh` | Passed: seven backend-disabled root initializations/validations, all environment contracts, policy checks, 30 Python tests (three opt-in integration tests skipped here), three mocked Terraform plans, chart lint/render and private image checks. |
+| `.artifacts/bin/tflint --recursive` | Passed. |
+| `uv tool run --python 3.12 checkov -d . --compact -o json` | Terraform: 536 passed, zero failed, 41 documented scoped skips. Dockerfiles were scanned again after the final Wrapper build fix: 82 passed, zero failed, two justified skips. Zero parsing errors. |
+| Configured Trivy HIGH/CRITICAL root scan and `scripts/scan_manifests.sh` | Passed with the existing documented, scoped exceptions. |
+| `.artifacts/bin/gitleaks dir . --redact --config .gitleaks.toml` and `git diff --check` | Passed; no leaks found. |
+| `examples/apps/mvnw -B -f examples/apps/pom.xml verify` | Passed on Java 21 in an isolated Docker daemon: two unit/TLS tests and one real MiniStack/PostgreSQL 17.6/MySQL 8.4.6 integration test, including expected migration failure and secret refresh. |
+| `PLATFORM_LOCAL_INTEGRATION=1 .venv/bin/pytest -q tests/integration` | Three passed on the same isolated daemon after Maven completed: SQL grant isolation, credential rotation and Valkey isolation. |
+| `scripts/local_kind.sh && .venv/bin/python scripts/local_smoke.py` | Passed after the Python suite on the isolated daemon: Java 21 image built with the checksum-verified Wrapper, both migration Jobs completed before rollout, both services passed HTTP/database/Valkey/S3 checks, and Calico denied a cross-namespace connection. |
+| `scripts/prepare-assets.sh` | Passed with verified cached files; regression tests cover reuse, invalid cache rejection, transient retries and invalid download rejection. |
+| `scripts/estimate_costs.py --validate-only` and full `scripts/estimate_costs.py` | Both passed. Partial example estimates remain $1,078.28/month each for dev/staging and $1,231.81/month for prod. The documented missing usage/prices and MySQL support-model issue remain; these are incomplete estimates. |
+
+These updates add no AWS capacity and introduce no deployment step. No AWS plan, apply, destroy, state access or migration was performed. The CoreDNS transfer and other AWS acceptance requirements above still apply to existing deployments. Local emulator suites run serially and cannot establish AWS networking, IAM, WAF or managed-service guarantees.

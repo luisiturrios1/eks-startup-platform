@@ -10,8 +10,14 @@ updates:
     directories: [/bootstrap, /environments/dev, /environments/staging, /environments/prod, /kubernetes/dev, /kubernetes/staging, /kubernetes/prod]
     schedule: {interval: weekly}
   - package-ecosystem: pip
-    directory: /
+    directories: [/, /components/credential-manager]
     schedule: {interval: weekly}
   - package-ecosystem: docker
     directory: /examples/apps
     schedule: {interval: weekly}
+    # Reject these known Java changes; CI also enforces Java 21 for future proposals.
+    ignore:
+      - dependency-name: eclipse-temurin
+        versions: ["24-jre"]
+      - dependency-name: maven
+        versions: ["3.9-eclipse-temurin-26"]

@@ -58,6 +58,8 @@ The estimates cover the infrastructure roots and their local modules. Bootstrap 
 
 `.github/workflows/infracost.yaml` runs on pushes to main, same-repository pull requests and manual dispatch. It reads `INFRACOST_API_KEY` from GitHub Actions repository secrets only in the estimation step. A missing key fails the trusted run instead of silently skipping estimation. Fork pull requests do not receive the secret and skip the estimation job.
 
+Dependabot runs use `scripts/estimate_costs.py --validate-only`: they validate and generate all three environment inputs without calling the pricing API or requiring secrets. Their job summary explicitly reports that pricing was deferred. Full pricing runs after integration on trusted main pushes or a trusted manual run. A successful Dependabot input check is not a cost estimate; review the trusted estimate before deployment. Do not copy the pricing credential into Dependabot secrets or enable privileged pull-request events.
+
 The job installs the checksum-pinned CLI, runs the same local script, writes the Markdown report to the Actions job summary and uploads only `costs.json` and `summary.md` as `infracost-estimates`, retained for seven days. Generated tfvars and credentials are not uploaded. The workflow has only `contents: read`, no AWS credentials/OIDC permissions, and no apply/destroy, state access or pull-request commenting. The existing validation workflow no longer has a duplicate cost job.
 
 Require the `Infracost / estimate` check in repository branch rules if cost estimation should block merges; no spending threshold is invented or automatically enforced.

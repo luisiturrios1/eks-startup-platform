@@ -5,8 +5,8 @@ import java.util.Map;
 import org.flywaydb.core.Flyway;
 import org.junit.jupiter.api.Test;
 import org.springframework.mock.env.MockEnvironment;
-import org.testcontainers.containers.PostgreSQLContainer;
-import org.testcontainers.containers.MySQLContainer;
+import org.testcontainers.postgresql.PostgreSQLContainer;
+import org.testcontainers.mysql.MySQLContainer;
 import org.testcontainers.containers.GenericContainer;
 import org.testcontainers.utility.DockerImageName;
 import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
@@ -14,14 +14,14 @@ import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.secretsmanager.SecretsManagerClient;
 import software.amazon.awssdk.services.s3.S3Client;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectMapper;
 import static org.junit.jupiter.api.Assertions.*;
 
 class DatabaseIT {
     @Test void bothServicesBothEnginesAndSecretRefresh() throws Exception {
         try (var mini=new ScopedMiniStackContainer();
-             var postgres=new PostgreSQLContainer<>("postgres:17.6");
-             var mysql=new MySQLContainer<>("mysql:8.4.6")) {
+             var postgres=new PostgreSQLContainer("postgres:17.6");
+             var mysql=new MySQLContainer("mysql:8.4.6")) {
             mini.start();postgres.start();mysql.start();
             var endpoint=java.net.URI.create("http://"+mini.getHost()+":"+mini.getMappedPort(4566));
             var credentials=StaticCredentialsProvider.create(AwsBasicCredentials.create("test","test"));
