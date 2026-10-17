@@ -26,13 +26,19 @@ Local Maven used host Java 25 with Java 21 compilation target; the container bui
 - Verify VPN-only administrative access, endpoint packet paths and policies, AWS Pod Identity, managed RDS privileges/TLS and rotation, Valkey IAM authentication, CloudWatch/X-Ray delivery, WAF enforcement, failover and restore in AWS. MiniStack cannot establish these guarantees.
 - Review resource-scoped scanner exceptions before deployment; their review deadline is 2027-01-16. Demo HTTP APIs illustrate integration and do not implement production payment processing or identity authentication.
 - Database engine/group/placement changes require an explicit data migration and rollback plan. No automatic destructive migration is included.
-- The GitHub Actions workflow was inspected and its underlying checks run locally; a hosted Actions run has not been observed.
+- At initial implementation validation, the GitHub Actions workflow was inspected and its underlying checks run locally; a hosted run had not yet been observed. The subsequent Infracost run is recorded below.
 
 ## Cost and deployment status
 
-Monthly cost remains **unknown**: no Infracost credential or measured usage profile was provided, so cost estimation was not executed. Main recurring drivers are per-domain RDS instances, three-AZ interface endpoints, Client VPN, EKS and nodes, managed Valkey, ALB/WAF, telemetry, storage and backups. See `cost.md` for required estimation inputs and production resilience costs.
+Initial implementation validation did not include a cost estimate because no Infracost credential or measured usage profile was available. Infracost has since been configured and verified as recorded below. Actual spending remains unknown without usage inputs and pricing-model reconciliation. Main recurring drivers are per-domain RDS instances, three-AZ interface endpoints, Client VPN, EKS and nodes, managed Valkey, ALB/WAF, telemetry, storage and backups. See `cost.md` for current configuration and estimate limitations.
 
 Deployment is an operator workflow only. CI has no AWS provisioning credentials, deployment role or apply/destroy jobs. State bootstrap, infrastructure and Kubernetes roots remain independent. No production changes or state migrations were performed.
+
+## Infracost setup follow-up — 2026-10-17
+
+- Checksum-pinned Infracost 0.10.46 estimated dev, staging and prod locally without unresolved Terraform-variable warnings. Reports preserve unadjusted tool totals and identify missing SNS pricing, unspecified usage and the MySQL 8.4 extended-support matching issue documented in `cost.md`.
+- The [hosted Infracost workflow](https://github.com/luisiturrios1/eks-startup-platform/actions/runs/39013695545) passed using the Actions repository secret and uploaded `infracost-estimates`. Credentials, generated tfvars, state and plans are excluded from the published source and report artifact.
+- Local validation passed: 20 Python tests (three Docker tests skipped), seven Terraform root validations, two mocked plans, Helm checks, TFLint, configured HIGH/CRITICAL Trivy scanning and Gitleaks. Terraform Checkov reported 538 passed, zero failed and 41 existing resource-scoped skips. No new Docker/Maven integration or live AWS acceptance tests were run for this follow-up.
 
 ## Final local rollout
 
