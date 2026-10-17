@@ -1,0 +1,8 @@
+{
+  "metrics-server-3.13.0.tgz": "fb929902e3b7565663cdd1734f31d63735c932be1541a7228b5aeef6d2348a1f",
+  "global-bundle.pem": "90a6f1a7978a1b1b096dca6c57511ca48d3b8cf052f8e704baf358f34ea2f21b",
+  "calico.yaml": "9382d2b27a76f40c170454b408653e6d71e2205ef0aef069e942bb690e7381d0",
+  "cert-manager-v1.21.2.tgz": "73a56e1728edd6c99f1f31082618c3259d279a76b7ebd3d4bdc5475c2442d34a",
+  "karpenter-1.15.0.tgz": "f1064e373f93bf265f49044328235ed940abb83e6336554f41dde98a55f114b1",
+  "aws-load-balancer-controller-3.6.0.tgz": "ee0403fcd713d6f1d28b1ff17d0d6d47e011cc4dd727a0aed0d95ae46897226a"
+}

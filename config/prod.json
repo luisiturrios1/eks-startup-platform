@@ -1,0 +1,21 @@
+{
+  "environment": "prod",
+  "database_groups": {
+    "payments": {
+      "domain": "payments",
+      "engine": "postgres",
+      "engine_version": "17",
+      "instance_class": "db.t4g.medium",
+      "storage_gb": 100,
+      "multi_az": true
+    },
+    "auth": {
+      "domain": "auth",
+      "engine": "mysql",
+      "engine_version": "8.4",
+      "instance_class": "db.t4g.medium",
+      "storage_gb": 100,
+      "multi_az": true
+    }
+  }
+}

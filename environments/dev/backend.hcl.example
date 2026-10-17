@@ -1,0 +1,3 @@
+bucket = "REPLACE-state-bucket"
+key = "dev/infrastructure.tfstate"
+region = "us-east-1"

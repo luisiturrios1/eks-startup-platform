@@ -1,0 +1,20 @@
+name: eks-platform-local
+services:
+  ministack:
+    image: ministackorg/ministack:1.5.27
+    ports: ["127.0.0.1:4566:4566"]
+    environment:
+      AWS_DEFAULT_REGION: us-east-1
+      MINISTACK_REGION: us-east-1
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    healthcheck:
+      test: [CMD, python, -c, "import urllib.request; urllib.request.urlopen('http://localhost:4566/_ministack/health')"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+  valkey:
+    image: valkey/valkey:8.0.6
+    ports: ["127.0.0.1:6379:6379"]
+    command: [valkey-server, --save, "", --appendonly, "no", --aclfile, /etc/valkey/users.acl]
+    volumes: ["./local/users.acl:/etc/valkey/users.acl:ro"]

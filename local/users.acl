@@ -1,0 +1,3 @@
+user default off
+user payments-service on >local-payments-only ~payments-service:* -@all +get +set +setex +del +expire +ttl +ping
+user auth-service on >local-auth-only ~auth-service:* -@all +get +set +setex +del +expire +ttl +ping

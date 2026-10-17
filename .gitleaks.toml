@@ -1,0 +1,5 @@
+[extend]
+useDefault = true
+[allowlist]
+description = "Generated dependencies and explicitly disposable emulator credentials"
+paths = ['''(^|/)\.venv/''', '''(^|/)\.terraform/''', '''(^|/)\.artifacts/''', '''(^|/)target/''', '''^local/users\.acl$''', '''^config/tools\.lock\.json$''']

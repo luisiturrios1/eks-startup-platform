@@ -1,0 +1,43 @@
+{
+  "apiVersion": "platform/v1",
+  "name": "payments-service",
+  "domain": "payments",
+  "image": "example.invalid/payments-service@sha256:0000000000000000000000000000000000000000000000000000000000000000",
+  "port": 8443,
+  "resources": {
+    "requests": {
+      "cpu": "250m",
+      "memory": "512Mi"
+    },
+    "limits": {
+      "cpu": "1000m",
+      "memory": "1Gi"
+    }
+  },
+  "scaling": {
+    "minReplicas": 2,
+    "maxReplicas": 6,
+    "cpuUtilization": 70
+  },
+  "database": {
+    "placement": "shared",
+    "group": "payments",
+    "name": "payments_service"
+  },
+  "permissions": {
+    "s3": [
+      "read",
+      "write"
+    ],
+    "cache": true
+  },
+  "dependencies": [],
+  "migration": {
+    "command": [
+      "java",
+      "-jar",
+      "/app/app.jar",
+      "--spring.profiles.active=migration"
+    ]
+  }
+}

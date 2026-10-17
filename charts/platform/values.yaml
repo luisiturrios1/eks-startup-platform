@@ -1,0 +1,12 @@
+clusterName: example
+region: us-east-1
+instanceProfile: example
+amiId: ami-REPLACE
+vpcCidr: 10.40.0.0/16
+nodeSecurityGroup: sg-REPLACE
+logGroup: /platform/example/applications
+images:
+  otel: example.invalid/otel@sha256:0000000000000000000000000000000000000000000000000000000000000000
+  fluentBit: example.invalid/fluent-bit@sha256:0000000000000000000000000000000000000000000000000000000000000000
+
+tags: {Environment: dev, Project: startup, ManagedBy: Terraform, Owner: platform-team, CostCenter: engineering}

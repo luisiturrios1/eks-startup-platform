@@ -1,0 +1,141 @@
+apiVersion: v1
+kind: Namespace
+metadata: {name: amazon-cloudwatch}
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata: {name: telemetry, namespace: amazon-cloudwatch}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata: {name: telemetry, namespace: amazon-cloudwatch}
+data:
+  config.yaml: |
+    receivers:
+      otlp:
+        protocols:
+          http:
+            endpoint: 0.0.0.0:4318
+            tls: {cert_file: /etc/tls/tls.crt, key_file: /etc/tls/tls.key}
+      kubeletstats:
+        collection_interval: 60s
+        auth_type: serviceAccount
+        endpoint: https://${env:K8S_NODE_NAME}:10250
+        insecure_skip_verify: false
+        metric_groups: [node, pod, container]
+    processors:
+      batch: {}
+      memory_limiter: {check_interval: 1s, limit_mib: 256}
+    exporters:
+      awsxray:
+        region: {{ .Values.region }}
+      awsemf:
+        region: {{ .Values.region }}
+        namespace: Platform
+        log_group_name: {{ .Values.logGroup }}
+        log_stream_name: metrics
+    service:
+      pipelines:
+        traces: {receivers: [otlp], processors: [memory_limiter, batch], exporters: [awsxray]}
+        metrics: {receivers: [otlp, kubeletstats], processors: [memory_limiter, batch], exporters: [awsemf]}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata: {name: platform-telemetry}
+rules:
+  - apiGroups: [""]
+    resources: [nodes, nodes/stats, pods, namespaces]
+    verbs: [get, list, watch]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata: {name: platform-telemetry}
+roleRef: {apiGroup: rbac.authorization.k8s.io, kind: ClusterRole, name: platform-telemetry}
+subjects: [{kind: ServiceAccount, name: telemetry, namespace: amazon-cloudwatch}]
+---
+apiVersion: apps/v1
+kind: DaemonSet
+metadata: {name: telemetry, namespace: amazon-cloudwatch}
+spec:
+  selector: {matchLabels: {app: telemetry}}
+  template:
+    metadata: {labels: {app: telemetry}}
+    spec:
+      serviceAccountName: telemetry
+      securityContext: {runAsNonRoot: true, runAsUser: 10001, runAsGroup: 10001, seccompProfile: {type: RuntimeDefault}}
+      containers:
+        - name: collector
+          image: {{ .Values.images.otel | quote }}
+          args: [--config=/etc/otel/config.yaml]
+          env:
+            - {name: AWS_REGION, value: {{ .Values.region }}}
+            - name: K8S_NODE_NAME
+              valueFrom: {fieldRef: {fieldPath: spec.nodeName}}
+          ports: [{name: otlp, containerPort: 4318}]
+          resources: {requests: {cpu: 100m, memory: 128Mi}, limits: {cpu: 500m, memory: 384Mi}}
+          securityContext: {runAsNonRoot: true, runAsUser: 10001, allowPrivilegeEscalation: false, readOnlyRootFilesystem: true, capabilities: {drop: [ALL]}}
+          volumeMounts: [{name: config, mountPath: /etc/otel}, {name: tls, mountPath: /etc/tls, readOnly: true}]
+      volumes: [{name: config, configMap: {name: telemetry}}, {name: tls, secret: {secretName: telemetry-tls}}]
+---
+apiVersion: v1
+kind: Service
+metadata: {name: telemetry, namespace: amazon-cloudwatch}
+spec:
+  selector: {app: telemetry}
+  ports: [{name: otlp, port: 4318}]
+---
+apiVersion: v1
+kind: ConfigMap
+metadata: {name: fluent-bit, namespace: amazon-cloudwatch}
+data:
+  fluent-bit.conf: |
+    [SERVICE]
+        Flush 5
+        Log_Level info
+    [INPUT]
+        Name tail
+        Path /var/log/containers/*.log
+        Tag containers.*
+        Mem_Buf_Limit 10MB
+        Skip_Long_Lines On
+    [OUTPUT]
+        Name cloudwatch_logs
+        Match *
+        region {{ .Values.region }}
+        log_group_name {{ .Values.logGroup }}
+        log_stream_prefix nodes-
+        auto_create_group false
+---
+apiVersion: apps/v1
+kind: DaemonSet
+metadata: {name: fluent-bit, namespace: amazon-cloudwatch}
+spec:
+  selector: {matchLabels: {app: fluent-bit}}
+  template:
+    metadata: {labels: {app: fluent-bit}}
+    spec:
+      serviceAccountName: telemetry
+      securityContext: {runAsUser: 0, runAsGroup: 0, seccompProfile: {type: RuntimeDefault}}
+      containers:
+        - name: logs
+          image: {{ .Values.images.fluentBit | quote }}
+          resources: {requests: {cpu: 50m, memory: 64Mi}, limits: {cpu: 200m, memory: 128Mi}}
+          securityContext: {allowPrivilegeEscalation: false, readOnlyRootFilesystem: true, capabilities: {drop: [ALL]}}
+          volumeMounts:
+            - {name: logs, mountPath: /var/log, readOnly: true}
+            - {name: config, mountPath: /fluent-bit/etc/fluent-bit.conf, subPath: fluent-bit.conf, readOnly: true}
+      volumes:
+        - {name: logs, hostPath: {path: /var/log, type: Directory}}
+        - {name: config, configMap: {name: fluent-bit}}
+
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata: {name: telemetry-tls, namespace: amazon-cloudwatch}
+spec:
+  secretName: telemetry-tls
+  duration: 720h
+  renewBefore: 240h
+  privateKey: {rotationPolicy: Always, algorithm: ECDSA, size: 256}
+  dnsNames: [telemetry.amazon-cloudwatch.svc, telemetry.amazon-cloudwatch.svc.cluster.local]
+  issuerRef: {name: platform-ca, kind: ClusterIssuer}

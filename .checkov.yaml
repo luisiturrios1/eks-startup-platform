@@ -1,0 +1,12 @@
+framework:
+  - terraform
+  - kubernetes
+  - dockerfile
+skip-path:
+  - .venv
+  - .terraform
+  - .artifacts
+  - examples/apps/target
+  - charts
+  - local
+output: cli

@@ -1,0 +1,54 @@
+{{ if not .Values.migrationOnly }}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: default-deny, namespace: {{ .Values.name }}}
+spec:
+  podSelector: {}
+  policyTypes: [Ingress, Egress]
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: required-egress, namespace: {{ .Values.name }}}
+spec:
+  podSelector: {}
+  policyTypes: [Egress]
+  egress:
+    - to:
+        - namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: kube-system}}
+          podSelector: {matchLabels: {k8s-app: kube-dns}}
+      ports: [{protocol: UDP, port: 53}, {protocol: TCP, port: 53}]
+    - to: [{ipBlock: {cidr: 169.254.170.23/32}}]
+      ports: [{protocol: TCP, port: 80}]
+    - to: [{ipBlock: {cidr: {{ .Values.vpcCidr }}}}]
+      ports: [{protocol: TCP, port: 443}, {protocol: TCP, port: 5432}, {protocol: TCP, port: 3306}, {protocol: TCP, port: 6379}]
+    # S3 gateway endpoints retain regional public IPs; route tables provide private transport.
+    - to: [{ipBlock: {cidr: 0.0.0.0/0, except: [169.254.169.254/32]}}]
+      ports: [{protocol: TCP, port: 443}]
+    - to:
+        - namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: amazon-cloudwatch}}
+      ports: [{protocol: TCP, port: 4318}]
+    {{ range .Values.dependencies }}
+    - to:
+        - namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: {{ . }}}}
+      ports: [{protocol: TCP, port: 8443}]
+    {{ end }}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: allowed-ingress, namespace: {{ .Values.name }}}
+spec:
+  podSelector: {matchLabels: {role: runtime}}
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        {{ range .Values.publicCidrs }}
+        - ipBlock: {cidr: {{ . }}}
+        {{ end }}
+      ports: [{protocol: TCP, port: 8443}]
+    {{ range .Values.allowedCallers }}
+    - from:
+        - namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: {{ . }}}}
+      ports: [{protocol: TCP, port: 8443}]
+    {{ end }}
+
+{{ end }}

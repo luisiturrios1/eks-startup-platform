@@ -1,0 +1,7 @@
+{
+  "region": "us-east-1",
+  "account_id": "111111111111",
+  "bucket_name": "REPLACE-unique-account-state",
+  "owner": "platform-team",
+  "cost_center": "engineering"
+}

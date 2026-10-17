@@ -1,0 +1,61 @@
+{
+  "platform": {
+    "cluster_name": "REPLACE",
+    "cluster_endpoint": "https://REPLACE",
+    "cluster_ca": "REPLACE",
+    "region": "us-east-1",
+    "vpc_id": "REPLACE",
+    "vpc_cidr": "10.40.0.0/16",
+    "node_security_group": "REPLACE",
+    "alb_security_group": "REPLACE",
+    "instance_profile": "REPLACE",
+    "interruption_queue": "REPLACE",
+    "log_group": "REPLACE",
+    "tags": {
+      "Environment": "staging",
+      "Project": "startup",
+      "ManagedBy": "Terraform",
+      "Owner": "REPLACE",
+      "CostCenter": "REPLACE"
+    }
+  },
+  "ami_id": "ami-REPLACE",
+  "images": {
+    "cert-manager": {
+      "repository": "REPLACE.dkr.ecr.us-east-1.amazonaws.com/platform-artifacts",
+      "digest": "sha256:REPLACE"
+    },
+    "cert-webhook": {
+      "repository": "REPLACE.dkr.ecr.us-east-1.amazonaws.com/platform-artifacts",
+      "digest": "sha256:REPLACE"
+    },
+    "cert-cainjector": {
+      "repository": "REPLACE.dkr.ecr.us-east-1.amazonaws.com/platform-artifacts",
+      "digest": "sha256:REPLACE"
+    },
+    "cert-startup": {
+      "repository": "REPLACE.dkr.ecr.us-east-1.amazonaws.com/platform-artifacts",
+      "digest": "sha256:REPLACE"
+    },
+    "karpenter": {
+      "repository": "REPLACE.dkr.ecr.us-east-1.amazonaws.com/platform-artifacts",
+      "digest": "sha256:REPLACE"
+    },
+    "load-balancer": {
+      "repository": "REPLACE.dkr.ecr.us-east-1.amazonaws.com/platform-artifacts",
+      "digest": "sha256:REPLACE"
+    },
+    "metrics": {
+      "repository": "REPLACE.dkr.ecr.us-east-1.amazonaws.com/platform-artifacts",
+      "digest": "sha256:REPLACE"
+    },
+    "otel": {
+      "repository": "REPLACE.dkr.ecr.us-east-1.amazonaws.com/platform-artifacts",
+      "digest": "sha256:REPLACE"
+    },
+    "fluent-bit": {
+      "repository": "REPLACE.dkr.ecr.us-east-1.amazonaws.com/platform-artifacts",
+      "digest": "sha256:REPLACE"
+    }
+  }
+}

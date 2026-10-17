@@ -1,0 +1,66 @@
+spring:
+  application:
+    name: ${SERVICE_NAME:payments-service}
+  flyway:
+    enabled: false
+  lifecycle:
+    timeout-per-shutdown-phase: 30s
+
+server:
+  port: 8443
+  shutdown: graceful
+  ssl:
+    enabled: true
+    bundle: service
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,prometheus
+  endpoint:
+    health:
+      probes:
+        enabled: true
+  tracing:
+    sampling:
+      probability: 0.1
+  otlp:
+    tracing:
+      endpoint: ${OTEL_EXPORTER_OTLP_TRACES_ENDPOINT:https://telemetry.amazon-cloudwatch.svc:4318/v1/traces}
+---
+spring:
+  config:
+    activate:
+      on-profile: local
+server:
+  port: 8080
+  ssl:
+    enabled: false
+management:
+  tracing:
+    enabled: false
+---
+spring:
+  config:
+    activate:
+      on-profile: migration
+  main:
+    web-application-type: none
+management:
+  tracing:
+    enabled: false
+
+---
+spring:
+  config:
+    activate:
+      on-profile: "!local & !migration"
+  ssl:
+    bundle:
+      pem:
+        service:
+          keystore:
+            certificate: ${TLS_CERT:/etc/service-tls/tls.crt}
+            private-key: ${TLS_KEY:/etc/service-tls/tls.key}
+          truststore:
+            certificate: ${TLS_CA:/etc/service-tls/ca.crt}

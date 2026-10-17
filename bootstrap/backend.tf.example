@@ -1,0 +1,7 @@
+# Activate only after separately authorized bootstrap state migration planning.
+terraform {
+  backend "s3" {
+    encrypt      = true
+    use_lockfile = true
+  }
+}

@@ -1,0 +1,3 @@
+bucket = "REPLACE-state-bucket"
+key = "prod/kubernetes.tfstate"
+region = "us-east-1"

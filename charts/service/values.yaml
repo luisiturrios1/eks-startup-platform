@@ -1,0 +1,29 @@
+name: payments-service
+image: example.invalid/payments@sha256:0000000000000000000000000000000000000000000000000000000000000000
+port: 8443
+region: us-east-1
+production: false
+migrationOnly: false
+migrationId: initial
+migration:
+  command: [java, -jar, /app/app.jar, --spring.profiles.active=migration]
+engine: postgres
+secret_arn: example-runtime
+migration_secret_arn: example-migration
+target_group_arn: ""
+bucket: ""
+cache_host: ""
+cache_user: ""
+cache_resource: ""
+vpcCidr: 10.40.0.0/16
+publicCidrs: [10.40.0.0/20, 10.40.16.0/20, 10.40.32.0/20]
+resources:
+  requests: {cpu: 250m, memory: 512Mi}
+  limits: {cpu: 1000m, memory: 1Gi}
+scaling: {minReplicas: 2, maxReplicas: 6, cpuUtilization: 70}
+dependencies: []
+allowedCallers: []
+
+prerequisitesOnly: false
+
+secretReferences: []

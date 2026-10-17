@@ -1,0 +1,50 @@
+{
+  "cert-manager": {
+    "source": "quay.io/jetstack/cert-manager-controller:v1.21.2",
+    "digest": "sha256:70f532fd9cfde0b09d55687200942399d89838bc2d5d5b45152eb799a15912b8"
+  },
+  "cert-webhook": {
+    "source": "quay.io/jetstack/cert-manager-webhook:v1.21.2",
+    "digest": "sha256:a60e2dac46dbb8a7f3df95c54ce941012f54c2fe022f0ee55aaa1ab40ed957ae"
+  },
+  "cert-cainjector": {
+    "source": "quay.io/jetstack/cert-manager-cainjector:v1.21.2",
+    "digest": "sha256:c85268c64f2e0e76684bf5fe8906caff34b82523561c6affe0fae3546bd87562"
+  },
+  "cert-startup": {
+    "source": "quay.io/jetstack/cert-manager-startupapicheck:v1.21.2",
+    "digest": "sha256:46e75b6866359ffb5d82624f41e3ed1c70b2994982702ced547ce5edb418a8f5"
+  },
+  "karpenter": {
+    "source": "public.ecr.aws/karpenter/controller:1.15.0",
+    "digest": "sha256:ab0f953e1460c61566d48209b517734ba79fe2105f335af1ff85faa8b6baf157"
+  },
+  "load-balancer": {
+    "source": "public.ecr.aws/eks/aws-load-balancer-controller:v3.6.0",
+    "digest": "sha256:337a9bf9a99bbac372c8da20afad7b059e0bc89034f1087e325455b28c7fd488"
+  },
+  "metrics": {
+    "source": "registry.k8s.io/metrics-server/metrics-server:v0.8.0",
+    "digest": "sha256:89258156d0e9af60403eafd44da9676fd66f600c7934d468ccc17e42b199aee2"
+  },
+  "otel": {
+    "source": "public.ecr.aws/aws-observability/aws-otel-collector:v0.50.0",
+    "digest": "sha256:7968fb60db6a2390a47ba6a2df029745638486e285c9b2487da1b722d0855a3e"
+  },
+  "fluent-bit": {
+    "source": "public.ecr.aws/aws-observability/aws-for-fluent-bit:2.34.3.20261001",
+    "digest": "sha256:eb9f94d165f6c83a1ac105a8fd5052a607f3142c549bf6804b1f899c5237a829"
+  },
+  "maven": {
+    "source": "maven:3.9.11-eclipse-temurin-21",
+    "digest": "sha256:6fdc855a6ed81d288ca7ca37ac6ff5e9308b612485c0801d70b25a858c83d237"
+  },
+  "java": {
+    "source": "eclipse-temurin:21-jre",
+    "digest": "sha256:ccbad9e7cb84c27092b12c40a4143e5733e050db9c3784d84f632dcf423fb2ef"
+  },
+  "lambda": {
+    "source": "public.ecr.aws/lambda/python:3.12",
+    "digest": "sha256:3856536f53e945debf4c90d0ff301cbaa837c07a4ab9b0e2c102c6e54ceb9762"
+  }
+}

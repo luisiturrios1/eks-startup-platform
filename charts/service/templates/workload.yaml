@@ -1,0 +1,157 @@
+{{ if not .Values.migrationOnly }}
+{{ range $account := list "runtime" "migration" }}
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ $account }}
+  namespace: {{ $.Values.name }}
+automountServiceAccountToken: false
+---
+{{ end }}
+{{ end }}
+{{ if not .Values.migrationOnly }}
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: service-tls
+  namespace: {{ .Values.name }}
+spec:
+  secretName: service-tls
+  duration: 720h
+  renewBefore: 240h
+  privateKey: {rotationPolicy: Always, algorithm: ECDSA, size: 256}
+  dnsNames:
+    - {{ .Values.name }}
+    - {{ .Values.name }}.{{ .Values.name }}.svc
+    - {{ .Values.name }}.{{ .Values.name }}.svc.cluster.local
+  issuerRef: {name: platform-ca, kind: ClusterIssuer}
+---
+apiVersion: v1
+kind: ResourceQuota
+metadata: {name: service, namespace: {{ .Values.name }}}
+spec:
+  hard:
+    pods: {{ add .Values.scaling.maxReplicas 4 | quote }}
+    requests.cpu: "20"
+    requests.memory: 40Gi
+    limits.cpu: "40"
+    limits.memory: 80Gi
+---
+{{ end }}
+{{ if .Values.migrationOnly }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: migrate-{{ .Values.migrationId }}
+  namespace: {{ .Values.name }}
+spec:
+  backoffLimit: 0
+  activeDeadlineSeconds: 600
+  ttlSecondsAfterFinished: 86400
+  template:
+    metadata: {labels: {app: {{ .Values.name }}, role: migration}}
+    spec:
+      restartPolicy: Never
+      serviceAccountName: migration
+      securityContext: {runAsNonRoot: true, runAsUser: 10001, runAsGroup: 10001, fsGroup: 10001, seccompProfile: {type: RuntimeDefault}}
+      containers:
+        - name: migration
+          image: {{ .Values.image | quote }}
+          command: {{ .Values.migration.command | toJson }}
+          env:
+            - {name: DB_SECRET_ID, value: {{ .Values.migration_secret_arn | quote }}}
+            - {name: DB_ENGINE, value: {{ .Values.engine | quote }}}
+            - {name: AWS_REGION, value: {{ .Values.region | quote }}}
+            - {name: AWS_STS_REGIONAL_ENDPOINTS, value: regional}
+          resources: {{ .Values.resources | toJson }}
+          securityContext: {allowPrivilegeEscalation: false, readOnlyRootFilesystem: true, capabilities: {drop: [ALL]}}
+          volumeMounts: [{name: tmp, mountPath: /tmp}]
+      volumes: [{name: tmp, emptyDir: {sizeLimit: 128Mi}}]
+{{ else if not .Values.prerequisitesOnly }}
+apiVersion: apps/v1
+kind: Deployment
+metadata: {name: {{ .Values.name }}, namespace: {{ .Values.name }}}
+spec:
+  replicas: {{ .Values.scaling.minReplicas }}
+  revisionHistoryLimit: 3
+  strategy: {type: RollingUpdate, rollingUpdate: {maxUnavailable: 0, maxSurge: 1}}
+  selector: {matchLabels: {app: {{ .Values.name }}, role: runtime}}
+  template:
+    metadata: {labels: {app: {{ .Values.name }}, role: runtime}}
+    spec:
+      serviceAccountName: runtime
+      terminationGracePeriodSeconds: 45
+      securityContext: {runAsNonRoot: true, runAsUser: 10001, runAsGroup: 10001, fsGroup: 10001, seccompProfile: {type: RuntimeDefault}}
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: topology.kubernetes.io/zone
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector: {matchLabels: {app: {{ .Values.name }}, role: runtime}}
+      containers:
+        - name: service
+          image: {{ .Values.image | quote }}
+          ports: [{name: https, containerPort: 8443}]
+          env:
+            - {name: SERVICE_NAME, value: {{ .Values.name | quote }}}
+            - {name: AWS_REGION, value: {{ .Values.region | quote }}}
+            - {name: AWS_STS_REGIONAL_ENDPOINTS, value: regional}
+            - {name: DB_SECRET_ID, value: {{ .Values.secret_arn | quote }}}
+            - {name: DB_ENGINE, value: {{ .Values.engine | quote }}}
+            - {name: EXTRA_SECRET_REFS, value: {{ .Values.secretReferences | toJson | quote }}}
+            - {name: S3_BUCKET, value: {{ .Values.bucket | quote }}}
+            - {name: CACHE_HOST, value: {{ .Values.cache_host | quote }}}
+            - {name: CACHE_USER, value: {{ .Values.cache_user | quote }}}
+            - {name: CACHE_RESOURCE, value: {{ .Values.cache_resource | quote }}}
+          resources: {{ .Values.resources | toJson }}
+          securityContext: {allowPrivilegeEscalation: false, readOnlyRootFilesystem: true, capabilities: {drop: [ALL]}}
+          startupProbe: {httpGet: {path: /actuator/health/liveness, port: https, scheme: HTTPS}, failureThreshold: 60, periodSeconds: 5}
+          readinessProbe: {httpGet: {path: /actuator/health/readiness, port: https, scheme: HTTPS}, periodSeconds: 10}
+          livenessProbe: {httpGet: {path: /actuator/health/liveness, port: https, scheme: HTTPS}, periodSeconds: 15}
+          volumeMounts:
+            - {name: tmp, mountPath: /tmp}
+            - {name: tls, mountPath: /etc/service-tls, readOnly: true}
+      volumes:
+        - {name: tmp, emptyDir: {sizeLimit: 128Mi}}
+        - {name: tls, secret: {secretName: service-tls, defaultMode: 0440}}
+---
+apiVersion: v1
+kind: Service
+metadata: {name: {{ .Values.name }}, namespace: {{ .Values.name }}}
+spec:
+  selector: {app: {{ .Values.name }}, role: runtime}
+  ports: [{name: https, port: 8443, targetPort: https}]
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata: {name: {{ .Values.name }}, namespace: {{ .Values.name }}}
+spec:
+  scaleTargetRef: {apiVersion: apps/v1, kind: Deployment, name: {{ .Values.name }}}
+  minReplicas: {{ .Values.scaling.minReplicas }}
+  maxReplicas: {{ .Values.scaling.maxReplicas }}
+  behavior:
+    scaleDown: {stabilizationWindowSeconds: 300}
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target: {type: Utilization, averageUtilization: {{ .Values.scaling.cpuUtilization }}}
+{{ if .Values.production }}
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata: {name: {{ .Values.name }}, namespace: {{ .Values.name }}}
+spec:
+  maxUnavailable: 1
+  selector: {matchLabels: {app: {{ .Values.name }}, role: runtime}}
+{{ end }}
+{{ if .Values.target_group_arn }}
+---
+apiVersion: elbv2.k8s.aws/v1beta1
+kind: TargetGroupBinding
+metadata: {name: {{ .Values.name }}, namespace: {{ .Values.name }}}
+spec:
+  targetGroupARN: {{ .Values.target_group_arn | quote }}
+  targetType: ip
+  serviceRef: {name: {{ .Values.name }}, port: 8443}
+{{ end }}
+{{ end }}

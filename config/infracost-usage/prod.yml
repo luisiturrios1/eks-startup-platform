@@ -1,0 +1,4 @@
+version: 0.1
+# No measured workload usage supplied. Missing usage is unknown, not free.
+# Add reviewed monthly usage here; see docs/cost.md.
+resource_usage: {}

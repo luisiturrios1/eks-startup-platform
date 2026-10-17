@@ -1,0 +1,30 @@
+{
+  "environment": "staging",
+  "account_id": "111111111111",
+  "production_account_id": "333333333333",
+  "owner": "REPLACE",
+  "cost_center": "REPLACE",
+  "vpc_cidr": "10.50.0.0/16",
+  "vpn_client_cidr": "10.250.0.0/22",
+  "vpn_server_certificate_arn": "REPLACE",
+  "vpn_saml_provider_arn": "REPLACE",
+  "vpn_group": "REPLACE",
+  "admin_role_arn": "REPLACE",
+  "certificate_arn": "REPLACE",
+  "hosted_zone_id": "REPLACE",
+  "domain_name": "REPLACE",
+  "budget_usd": 1000,
+  "alert_email": "REPLACE",
+  "rotation_image_uri": "REPLACE",
+  "addons": {
+    "vpc-cni": "REPLACE_WITH_PREFLIGHT_VERSION",
+    "kube-proxy": "REPLACE_WITH_PREFLIGHT_VERSION",
+    "coredns": "REPLACE_WITH_PREFLIGHT_VERSION",
+    "eks-pod-identity-agent": "REPLACE_WITH_PREFLIGHT_VERSION"
+  },
+  "availability_zone_ids": [
+    "use1-az1",
+    "use1-az2",
+    "use1-az4"
+  ]
+}

@@ -1,0 +1,15 @@
+# Prepared by scripts/estimate_costs.py. Never put credentials in this file.
+version: 0.1
+projects:
+  - path: environments/dev
+    name: dev
+    terraform_var_files: [../../build/infracost/dev.tfvars.json]
+    usage_file: config/infracost-usage/dev.yml
+  - path: environments/staging
+    name: staging
+    terraform_var_files: [../../build/infracost/staging.tfvars.json]
+    usage_file: config/infracost-usage/staging.yml
+  - path: environments/prod
+    name: prod
+    terraform_var_files: [../../build/infracost/prod.tfvars.json]
+    usage_file: config/infracost-usage/prod.yml

@@ -1,0 +1,258 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "apiVersion",
+    "name",
+    "domain",
+    "image",
+    "port",
+    "resources",
+    "scaling",
+    "database",
+    "permissions",
+    "dependencies",
+    "migration"
+  ],
+  "properties": {
+    "apiVersion": {
+      "const": "platform/v1"
+    },
+    "name": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]{2,30}$"
+    },
+    "domain": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]{1,20}$"
+    },
+    "image": {
+      "type": "string",
+      "pattern": "^[^ ]+@sha256:[a-f0-9]{64}$"
+    },
+    "port": {
+      "type": "integer",
+      "minimum": 1024,
+      "maximum": 65535
+    },
+    "resources": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "requests",
+        "limits"
+      ],
+      "properties": {
+        "requests": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "cpu",
+            "memory"
+          ],
+          "properties": {
+            "cpu": {
+              "type": "string",
+              "pattern": "^[0-9]+m?$"
+            },
+            "memory": {
+              "type": "string",
+              "pattern": "^[0-9]+(Mi|Gi)$"
+            }
+          }
+        },
+        "limits": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "cpu",
+            "memory"
+          ],
+          "properties": {
+            "cpu": {
+              "type": "string",
+              "pattern": "^[0-9]+m?$"
+            },
+            "memory": {
+              "type": "string",
+              "pattern": "^[0-9]+(Mi|Gi)$"
+            }
+          }
+        }
+      }
+    },
+    "scaling": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "minReplicas",
+        "maxReplicas",
+        "cpuUtilization"
+      ],
+      "properties": {
+        "minReplicas": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "maxReplicas": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100
+        },
+        "cpuUtilization": {
+          "type": "integer",
+          "minimum": 20,
+          "maximum": 90
+        }
+      }
+    },
+    "database": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "placement",
+        "name"
+      ],
+      "properties": {
+        "placement": {
+          "enum": [
+            "shared",
+            "dedicated"
+          ]
+        },
+        "name": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_]{1,40}$"
+        },
+        "group": {
+          "type": "string"
+        },
+        "engine": {
+          "enum": [
+            "postgres",
+            "mysql"
+          ]
+        },
+        "engine_version": {
+          "type": "string"
+        },
+        "instance_class": {
+          "type": "string"
+        },
+        "storage_gb": {
+          "type": "integer",
+          "minimum": 20
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "placement": {
+                "const": "shared"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "group"
+            ],
+            "not": {
+              "anyOf": [
+                {
+                  "required": [
+                    "engine"
+                  ]
+                },
+                {
+                  "required": [
+                    "engine_version"
+                  ]
+                },
+                {
+                  "required": [
+                    "instance_class"
+                  ]
+                },
+                {
+                  "required": [
+                    "storage_gb"
+                  ]
+                }
+              ]
+            }
+          },
+          "else": {
+            "required": [
+              "engine",
+              "engine_version",
+              "instance_class",
+              "storage_gb"
+            ],
+            "not": {
+              "required": [
+                "group"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "permissions": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "s3",
+        "cache"
+      ],
+      "properties": {
+        "s3": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "enum": [
+              "read",
+              "write"
+            ]
+          }
+        },
+        "cache": {
+          "type": "boolean"
+        }
+      }
+    },
+    "dependencies": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "type": "string"
+      }
+    },
+    "migration": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "command"
+      ],
+      "properties": {
+        "command": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      }
+    },
+    "secretReferences": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "pattern": "^arn:aws:secretsmanager:[a-z0-9-]+:[0-9]{12}:secret:[a-zA-Z0-9/_+=.@-]+$"
+      }
+    }
+  }
+}
