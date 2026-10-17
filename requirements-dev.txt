@@ -1,6 +1,6 @@
 PyYAML==6.0.3
 jsonschema==4.25.1
-pytest==8.4.2
+pytest==9.1.1
 python-hcl2==7.3.1
 boto3==1.40.52
 psycopg[binary]==3.2.10
