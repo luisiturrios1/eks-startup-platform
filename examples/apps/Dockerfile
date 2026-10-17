@@ -7,7 +7,7 @@ COPY pom.xml mvnw ./
 COPY .mvn ./.mvn
 COPY src ./src
 RUN ./mvnw -B -DskipTests package
-FROM eclipse-temurin:21-jre@sha256:ccbad9e7cb84c27092b12c40a4143e5733e050db9c3784d84f632dcf423fb2ef
+FROM eclipse-temurin:24-jre@sha256:8cb2387a28af84cf0db0948d9c67d4480192f4e567027a3963f145d218e8b4f2
 WORKDIR /app
 COPY --from=build /build/target/platform-examples-1.0.0.jar /app/app.jar
 COPY global-bundle.pem /etc/rds/global-bundle.pem
