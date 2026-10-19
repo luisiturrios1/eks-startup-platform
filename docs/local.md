@@ -1,6 +1,6 @@
 # Local development and testing
 
-Use Python 3.12+ and Java 21. The examples use Spring Boot 4.1.1 and the checksum-verified Maven 3.10.0 Wrapper. The Docker build also invokes this Wrapper; its build-only, version-pinned `unzip` dependency keeps the download on the ZIP artifact covered by the Wrapper checksum. Keep both Java container stages on Java 21 when reviewing dependency updates.
+Use Python 3.12+ and JDK 26 (`java -version` and `javac -version` must both report 26; set `JAVA_HOME` to that JDK). The examples use Spring Boot 4.1.1, AWS SDK BOM 2.56.0 and the checksum-verified Maven 3.10.0 Wrapper. The Docker build also invokes this Wrapper; its build-only, version-pinned `unzip` dependency keeps the download on the ZIP artifact covered by the Wrapper checksum. Keep both Java container stages, the Maven compilation target and CI on Java 26 when reviewing dependency updates. A Java 21 or 25 host cannot compile the Java 26 target. See [Java 26 migration and support risk](java26.md).
 
 The Java integration suite wraps MiniStack's documented module with scoped cleanup: version 0.1.5 otherwise reaps all containers carrying its global label. Our tests remove only their own emulator container and use independently owned database fixtures. Do not add real-infrastructure mode to this wrapper without implementing ownership-scoped sidecar cleanup.
 

@@ -24,3 +24,7 @@ AWS API Describe operations and telemetry publishing sometimes require `Resource
 Endpoint policies restrict interface access to the account, while workload IAM restricts actions/resources. S3 permits the regional ECR layer bucket in addition to account-owned objects. KMS account-root statements enable IAM delegation; application grants remain scoped. Review endpoint-specific policy support during the regional preflight/plan.
 
 Sources: [Lambda container signing limitation](https://docs.aws.amazon.com/lambda/latest/dg/configuration-codesigning-create.html), [MiniStack limitations](https://ministack.org/docs/limitations). Scanner exceptions are not evidence that AWS runtime behavior has been tested.
+
+## Java 26 runtime support risk — 2026-10-18
+
+The user requested Java 26 for the application examples. This affects only the `maven` and `java` base-image entries in `config/images.lock.json`, `examples/apps/Dockerfile`, the Maven target and the application CI JDK. [Adoptium marks Temurin 26 as EOSL after September 2026](https://adoptium.net/support/); digest pinning and a clean scan do not provide future security fixes. No scanner suppression is added and this note is not a production waiver. Before production promotion, require a confirmed maintained runtime strategy and explicit security review as described in [the migration guide](java26.md); review this risk before every promotion and no later than 2027-01-16.

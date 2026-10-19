@@ -15,9 +15,4 @@ updates:
   - package-ecosystem: docker
     directory: /examples/apps
     schedule: {interval: weekly}
-    # Reject these known Java changes; CI also enforces Java 21 for future proposals.
-    ignore:
-      - dependency-name: eclipse-temurin
-        versions: ["24-jre"]
-      - dependency-name: maven
-        versions: ["3.9-eclipse-temurin-26"]
+    # CI requires Java 26 consistently across both image stages, Maven and setup-java.
