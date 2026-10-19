@@ -57,15 +57,33 @@ resource "aws_iam_role" "cni" {
 }
 
 resource "aws_iam_role" "runtime" {
-  for_each           = var.services
-  name               = "${local.name}-${each.key}-runtime"
-  assume_role_policy = local.trust_pods
+  for_each = var.services
+  name     = "${local.name}-${each.key}-runtime"
+  assume_role_policy = jsonencode(merge(jsondecode(local.trust_pods), {
+    Statement = [for statement in jsondecode(local.trust_pods).Statement : merge(statement, {
+      Condition = merge(statement.Condition, {
+        StringEquals = merge(statement.Condition.StringEquals, {
+          "aws:RequestTag/kubernetes-namespace"       = each.key
+          "aws:RequestTag/kubernetes-service-account" = "runtime"
+        })
+      })
+    })]
+  }))
 }
 
 resource "aws_iam_role" "migration" {
-  for_each           = var.services
-  name               = "${local.name}-${each.key}-migration"
-  assume_role_policy = local.trust_pods
+  for_each = var.services
+  name     = "${local.name}-${each.key}-migration"
+  assume_role_policy = jsonencode(merge(jsondecode(local.trust_pods), {
+    Statement = [for statement in jsondecode(local.trust_pods).Statement : merge(statement, {
+      Condition = merge(statement.Condition, {
+        StringEquals = merge(statement.Condition.StringEquals, {
+          "aws:RequestTag/kubernetes-namespace"       = each.key
+          "aws:RequestTag/kubernetes-service-account" = "migration"
+        })
+      })
+    })]
+  }))
 }
 
 resource "aws_iam_role" "credentials" {

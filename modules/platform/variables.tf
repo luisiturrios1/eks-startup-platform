@@ -118,8 +118,8 @@ variable "cache_node_type" {
 
 variable "rotation_image_uri" {
   validation {
-    condition     = can(regex("^[0-9]{12}\\.dkr\\.ecr\\.[a-z0-9-]+\\.amazonaws\\.com/[^@]+@sha256:[a-f0-9]{64}$", var.rotation_image_uri))
-    error_message = "Supply a private ECR credential manager image pinned by sha256 digest."
+    condition     = can(regex("^${var.account_id}\\.dkr\\.ecr\\.${var.region}\\.amazonaws\\.com/[a-z0-9/_.-]+@sha256:[a-f0-9]{64}$", var.rotation_image_uri))
+    error_message = "Supply a sha256-pinned credential manager image from the environment account and region ECR."
   }
   type        = string
   description = "Private ECR credential manager image pinned by digest."
@@ -132,13 +132,18 @@ variable "addons" {
 
 variable "services" {
   validation {
+    condition     = alltrue([for name, service in var.services : name == service.name])
+    error_message = "Service map keys must match service names and namespace identity."
+  }
+
+  validation {
     condition     = alltrue(flatten([for service in var.services : [for arn in service.secretReferences : startswith(arn, "arn:aws:secretsmanager:${var.region}:${var.account_id}:secret:${var.project_name}-${var.environment}/${service.name}/") && !strcontains(arn, "*") && !strcontains(arn, "/database/")]]))
     error_message = "Additional secret references must be exact ARNs under the owning service's environment/account prefix."
   }
 
   validation {
-    condition     = alltrue([for service in var.services : can(regex("^[0-9]{12}\\.dkr\\.ecr\\.[a-z0-9-]+\\.amazonaws\\.com/[^@]+@sha256:[a-f0-9]{64}$", service.image)) && service.port == 8443 && service.scaling.minReplicas <= service.scaling.maxReplicas && (var.environment != "prod" || service.scaling.minReplicas >= 2)])
-    error_message = "Deployments require private digest-pinned ECR images, port 8443, valid scaling bounds and at least two production replicas. Replace illustrative images before deployment."
+    condition     = alltrue([for service in var.services : can(regex("^${var.account_id}\\.dkr\\.ecr\\.${var.region}\\.amazonaws\\.com/[a-z0-9/_.-]+@sha256:[a-f0-9]{64}$", service.image)) && service.port == 8443 && service.scaling.minReplicas <= service.scaling.maxReplicas && (var.environment != "prod" || service.scaling.minReplicas >= 2)])
+    error_message = "Deployments require digest-pinned ECR images from the environment account and region, port 8443, valid scaling bounds and at least two production replicas. Replace illustrative images before deployment."
   }
   type        = map(object({ apiVersion = string, secretReferences = optional(list(string), []), name = string, domain = string, image = string, port = number, resources = object({ requests = map(string), limits = map(string) }), scaling = object({ minReplicas = number, maxReplicas = number, cpuUtilization = number }), database = object({ placement = string, name = string, group = optional(string), engine = optional(string), engine_version = optional(string), instance_class = optional(string), storage_gb = optional(number) }), permissions = object({ s3 = list(string), cache = bool }), dependencies = list(string), migration = object({ command = list(string) }), database_key = string, engine = string }))
   description = "Compiled service contracts."

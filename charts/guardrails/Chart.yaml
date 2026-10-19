@@ -1,0 +1,5 @@
+apiVersion: v2
+name: platform-guardrails
+description: Native fail-closed workload image admission without an external webhook.
+type: application
+version: 0.1.0

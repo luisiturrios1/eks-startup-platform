@@ -1,0 +1,32 @@
+{
+  "$schema": "https://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "required": ["registry", "managedAddonImages"],
+  "properties": {
+    "registry": {
+      "type": "string",
+      "pattern": "^[0-9]{12}\\.dkr\\.ecr\\.[a-z0-9-]+\\.amazonaws\\.com$"
+    },
+    "managedAddonImages": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "aws-node": {"$ref": "#/definitions/images"},
+        "kube-proxy": {"$ref": "#/definitions/images"},
+        "coredns": {"$ref": "#/definitions/images"},
+        "eks-pod-identity-agent": {"$ref": "#/definitions/images"}
+      }
+    }
+  },
+  "definitions": {
+    "images": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "pattern": "^[0-9]{12}\\.dkr\\.ecr\\.[a-z0-9-]+\\.amazonaws\\.com/[a-z0-9/_.-]+(:v[0-9][a-zA-Z0-9_.-]*|@sha256:[a-f0-9]{64})$"
+      }
+    }
+  }
+}

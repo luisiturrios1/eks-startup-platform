@@ -6,7 +6,7 @@ repo_root=$PWD
 trivy_bin=${TRIVY:-$repo_root/.artifacts/bin/trivy}
 render_dir=$(mktemp -d)
 trap 'rm -rf "$render_dir"' EXIT
-for chart in platform system-network; do
+for chart in platform system-network guardrails; do
   helm template "$chart" "charts/$chart" --output-dir "$render_dir/charts" >/dev/null
 done
 # Keep the single-resource Fluent Bit exception path identical to its source path.

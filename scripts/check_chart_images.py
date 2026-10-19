@@ -16,5 +16,5 @@ for chart,values in charts.items():
     with tempfile.NamedTemporaryFile(mode='w',suffix='.json') as file:
         json.dump(values,file);file.flush()
         rendered=subprocess.check_output(['helm','template','test',str(ROOT/'.artifacts'/chart),'--kube-version','1.35.0','--values',file.name])
-        subprocess.run([str(ROOT/'scripts/helm_postrender.py')],input=rendered,check=True,stdout=subprocess.DEVNULL)
+        subprocess.run([str(ROOT/'scripts/helm_postrender.py'), '--registry', repository.split('/')[0]],input=rendered,check=True,stdout=subprocess.DEVNULL)
     print(chart+': private image overrides passed')

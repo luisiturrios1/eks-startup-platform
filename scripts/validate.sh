@@ -12,6 +12,9 @@ for root in bootstrap environments/{dev,staging,prod} kubernetes/{dev,staging,pr
  done
 terraform -chdir=modules/platform init -backend=false -input=false
 terraform -chdir=modules/platform test
+terraform -chdir=kubernetes/dev test
+helm lint charts/guardrails
+helm template guardrails charts/guardrails >/dev/null
 helm lint charts/service
 helm lint charts/platform
 helm lint charts/system-network

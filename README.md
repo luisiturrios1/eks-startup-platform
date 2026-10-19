@@ -9,7 +9,7 @@ Terraform infrastructure, a validated service DSL, Java 26 / Spring Boot example
 - AWS-managed RDS PostgreSQL or MySQL: named domain groups share instances, never service databases/users/grants. Dedicated instances are also supported.
 - AWS-managed ElastiCache for Valkey with TLS, IAM users and service key-prefix ACLs.
 - Secrets Manager holds alternating runtime/migration credentials generated outside Terraform. RDS manages the master secret. A VPC Lambda rotates service credentials every 30 days, with failure alarms and a DLQ.
-- Karpenter, HPA, per-service namespaces and network policies; CloudWatch logs/metrics and X-Ray traces. Private ECR images are required for AWS deployment.
+- Karpenter, HPA, per-service namespaces and default-deny network policies; CloudWatch logs/metrics and X-Ray traces. Native admission requires digest-pinned images in the environment account/region ECR, with exact AWS-managed add-on exceptions. See [workload security controls and rollout](docs/workload-security.md).
 
 ```mermaid
 flowchart LR

@@ -31,6 +31,10 @@ jobs:
           key: assets-${{ hashFiles('config/artifacts.lock.json') }}
       - run: scripts/prepare-assets.sh
       - run: scripts/validate.sh
+      - name: Test native admission with an isolated local Kubernetes API
+        run: |
+          .venv/bin/python scripts/prepare_admission_test.py
+          PLATFORM_ADMISSION_INTEGRATION=1 KUBEBUILDER_ASSETS="$PWD/.artifacts/envtest/controller-tools/envtest" .venv/bin/python -m pytest -q tests/test_admission.py
       - run: python scripts/install_tools.py
       - run: .artifacts/bin/tflint --init && .artifacts/bin/tflint --recursive
       - run: pip install checkov==3.3.29

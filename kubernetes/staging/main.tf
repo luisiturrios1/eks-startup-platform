@@ -1,5 +1,20 @@
+# Install admission before any new Helm controller workload; no controller pods are required.
+resource "helm_release" "guardrails" {
+  name      = "platform-guardrails"
+  namespace = "kube-system"
+  chart     = "../../charts/guardrails"
+  wait      = true
+  atomic    = true
+  values = [yamlencode({
+    registry           = "${var.platform.account_id}.dkr.ecr.${var.platform.region}.amazonaws.com"
+    managedAddonImages = var.managed_addon_images
+  })]
+  lifecycle { prevent_destroy = true }
+}
+
 # No pods or admission webhooks are needed to install this bootstrap chart.
 resource "helm_release" "network" {
+  depends_on       = [helm_release.guardrails]
   name             = "platform-network"
   namespace        = "cert-manager"
   create_namespace = true
@@ -31,6 +46,7 @@ resource "helm_release" "cert_manager" {
   values           = [yamlencode({ crds = { enabled = true }, image = { repository = var.images["cert-manager"].repository, digest = var.images["cert-manager"].digest }, webhook = { image = { repository = var.images["cert-webhook"].repository, digest = var.images["cert-webhook"].digest } }, cainjector = { image = { repository = var.images["cert-cainjector"].repository, digest = var.images["cert-cainjector"].digest } }, startupapicheck = { image = { repository = var.images["cert-startup"].repository, digest = var.images["cert-startup"].digest } } })]
   postrender {
     binary_path = "../../scripts/helm_postrender.py"
+    args        = ["--registry", "${var.platform.account_id}.dkr.ecr.${var.platform.region}.amazonaws.com"]
   }
 }
 
@@ -46,6 +62,7 @@ resource "helm_release" "karpenter" {
   values          = [yamlencode({ settings = { clusterName = var.platform.cluster_name, clusterEndpoint = var.platform.cluster_endpoint, interruptionQueue = var.platform.interruption_queue, isolatedVPC = true }, serviceAccount = { name = "karpenter" }, controller = { image = { repository = var.images["karpenter"].repository, digest = var.images["karpenter"].digest }, resources = { requests = { cpu = "250m", memory = "512Mi" }, limits = { cpu = "1", memory = "1Gi" } } }, nodeSelector = { "platform/system" = "true" } })]
   postrender {
     binary_path = "../../scripts/helm_postrender.py"
+    args        = ["--registry", "${var.platform.account_id}.dkr.ecr.${var.platform.region}.amazonaws.com"]
   }
 }
 
@@ -61,6 +78,7 @@ resource "helm_release" "load_balancer" {
   values          = [yamlencode({ clusterName = var.platform.cluster_name, region = var.platform.region, vpcId = var.platform.vpc_id, serviceAccount = { name = "aws-load-balancer-controller" }, image = { repository = var.images["load-balancer"].repository, tag = "@${var.images["load-balancer"].digest}" }, enableShield = false, enableWaf = false, enableWafv2 = false, enableServiceMutatorWebhook = false, enableBackendSecurityGroup = false })]
   postrender {
     binary_path = "../../scripts/helm_postrender.py"
+    args        = ["--registry", "${var.platform.account_id}.dkr.ecr.${var.platform.region}.amazonaws.com"]
   }
 }
 
@@ -76,6 +94,7 @@ resource "helm_release" "metrics" {
   values          = [yamlencode({ image = { repository = var.images["metrics"].repository, tag = "@${var.images["metrics"].digest}" }, replicas = 2 })]
   postrender {
     binary_path = "../../scripts/helm_postrender.py"
+    args        = ["--registry", "${var.platform.account_id}.dkr.ecr.${var.platform.region}.amazonaws.com"]
   }
 }
 
@@ -91,5 +110,6 @@ resource "helm_release" "platform" {
   depends_on      = [helm_release.cert_manager, helm_release.karpenter, helm_release.load_balancer, helm_release.metrics]
   postrender {
     binary_path = "../../scripts/helm_postrender.py"
+    args        = ["--registry", "${var.platform.account_id}.dkr.ecr.${var.platform.region}.amazonaws.com"]
   }
 }

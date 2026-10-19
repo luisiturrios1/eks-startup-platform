@@ -85,3 +85,8 @@ output "service_cidr" {
   description = "Kubernetes service IPv4 CIDR for explicit API egress policies."
   value       = aws_eks_cluster.this.kubernetes_network_config[0].service_ipv4_cidr
 }
+
+output "addon_versions" {
+  description = "Approved regional EKS-managed add-on versions for exact image inventory verification."
+  value       = var.addons
+}

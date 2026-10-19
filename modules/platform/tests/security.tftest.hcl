@@ -2,7 +2,14 @@ mock_provider "aws" {
   mock_data "aws_caller_identity" { defaults = { account_id = "111111111111" } }
   mock_data "aws_partition" { defaults = { partition = "aws" } }
   mock_data "aws_availability_zones" { defaults = { names = ["us-east-1a", "us-east-1b", "us-east-1c"] } }
-  mock_resource "aws_kms_key" { defaults = { arn = "arn:aws:kms:us-east-1:111111111111:key/00000000-0000-0000-0000-000000000000" } }
+  mock_resource "aws_kms_key" {
+    override_during = plan
+    defaults        = { arn = "arn:aws:kms:us-east-1:111111111111:key/00000000-0000-0000-0000-000000000000" }
+  }
+  mock_resource "aws_secretsmanager_secret" {
+    override_during = plan
+    defaults        = { arn = "arn:aws:secretsmanager:us-east-1:111111111111:secret:mock-abcdef" }
+  }
   mock_resource "aws_iam_role" {
     override_during = plan
     defaults        = { arn = "arn:aws:iam::111111111111:role/mock" }
@@ -78,6 +85,32 @@ run "private_platform" {
     error_message = "Existing instances require prior ownership and cannot gain ownership/deletion tags through tag updates."
   }
 
+  assert {
+    condition = alltrue([for name, role in aws_iam_role.runtime :
+      jsondecode(role.assume_role_policy).Statement[0].Condition.StringEquals["aws:RequestTag/kubernetes-namespace"] == name &&
+      jsondecode(role.assume_role_policy).Statement[0].Condition.StringEquals["aws:RequestTag/kubernetes-service-account"] == "runtime" &&
+      aws_eks_pod_identity_association.runtime[name].namespace == name &&
+      aws_eks_pod_identity_association.runtime[name].service_account == "runtime"
+    ])
+    error_message = "Runtime trust must bind to the exact service namespace and runtime account."
+  }
+  assert {
+    condition = alltrue([for name, role in aws_iam_role.migration :
+      jsondecode(role.assume_role_policy).Statement[0].Condition.StringEquals["aws:RequestTag/kubernetes-namespace"] == name &&
+      jsondecode(role.assume_role_policy).Statement[0].Condition.StringEquals["aws:RequestTag/kubernetes-service-account"] == "migration" &&
+      aws_eks_pod_identity_association.migration[name].namespace == name &&
+      aws_eks_pod_identity_association.migration[name].service_account == "migration"
+    ])
+    error_message = "Migration trust must remain isolated from runtime and other services."
+  }
+  assert {
+    condition = alltrue([for name, policy in aws_iam_role_policy.migration :
+      length(jsondecode(policy.policy).Statement) == 2 &&
+      jsondecode(policy.policy).Statement[0].Resource == aws_secretsmanager_secret.migration[name].arn
+    ])
+    error_message = "Migration roles must only read their own credential secret and decrypt via Secrets Manager."
+  }
+
 }
 
 run "optional_permissions_disabled" {
@@ -110,4 +143,22 @@ run "mixed_cache_permissions" {
     condition     = output.services["auth-service"].cache_host == "" && output.services["auth-service"].cache_resource == "" && output.services["auth-service"].cache_user == ""
     error_message = "A non-consumer must not receive another service's cache connection metadata."
   }
+}
+
+run "foreign_service_image_rejected" {
+  command = plan
+  variables {
+    services = { for name, service in var.services : name => merge(service, {
+      image = "222222222222.dkr.ecr.us-east-1.amazonaws.com/foreign@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    }) }
+  }
+  expect_failures = [var.services]
+}
+
+run "foreign_rotation_image_rejected" {
+  command = plan
+  variables {
+    rotation_image_uri = "222222222222.dkr.ecr.us-east-1.amazonaws.com/foreign@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  }
+  expect_failures = [var.rotation_image_uri]
 }

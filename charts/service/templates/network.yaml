@@ -22,32 +22,47 @@ spec:
     - to: [{ipBlock: {cidr: {{ .Values.vpcCidr }}}}]
       ports: [{protocol: TCP, port: 443}, {protocol: TCP, port: 5432}, {protocol: TCP, port: 3306}, {protocol: TCP, port: 6379}]
     # S3 gateway endpoints retain regional public IPs; route tables provide private transport.
-    - to: [{ipBlock: {cidr: 0.0.0.0/0, except: [169.254.169.254/32]}}]
+    - to: [{ipBlock: {cidr: 0.0.0.0/0, except: [{{ .Values.vpcCidr }}, {{ .Values.serviceCidr }}, 169.254.0.0/16]}}]
       ports: [{protocol: TCP, port: 443}]
     - to:
         - namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: amazon-cloudwatch}}
+          podSelector: {matchLabels: {app: telemetry}}
       ports: [{protocol: TCP, port: 4318}]
+    {{ if .Values.dependencies }}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: declared-dependencies, namespace: {{ .Values.name }}}
+spec:
+  podSelector: {matchLabels: {app: {{ .Values.name }}, role: runtime}}
+  policyTypes: [Egress]
+  egress:
     {{ range .Values.dependencies }}
     - to:
         - namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: {{ . }}}}
+          podSelector: {matchLabels: {app: {{ . }}, role: runtime}}
       ports: [{protocol: TCP, port: 8443}]
+    {{ end }}
     {{ end }}
 ---
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata: {name: allowed-ingress, namespace: {{ .Values.name }}}
 spec:
-  podSelector: {matchLabels: {role: runtime}}
+  podSelector: {matchLabels: {app: {{ .Values.name }}, role: runtime}}
   policyTypes: [Ingress]
-  ingress:
+  ingress:{{ if not (or .Values.publicCidrs .Values.allowedCallers) }} []{{ end }}
+    {{ if .Values.publicCidrs }}
     - from:
         {{ range .Values.publicCidrs }}
         - ipBlock: {cidr: {{ . }}}
         {{ end }}
       ports: [{protocol: TCP, port: 8443}]
+    {{ end }}
     {{ range .Values.allowedCallers }}
     - from:
         - namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: {{ . }}}}
+          podSelector: {matchLabels: {app: {{ . }}, role: runtime}}
       ports: [{protocol: TCP, port: 8443}]
     {{ end }}
 

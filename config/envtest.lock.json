@@ -1,0 +1,10 @@
+{
+  "darwin-arm64": {
+    "filename": "envtest-v1.35.0-darwin-arm64.tar.gz",
+    "sha256": "3c6b1ebd745b82daed47605fb565f7c670c8a3344b57a377a914d013b6b9eef0"
+  },
+  "linux-amd64": {
+    "filename": "envtest-v1.35.0-linux-amd64.tar.gz",
+    "sha256": "5716719def14a3fec3ed285e5e8c4280e6268854039b5073a96e8c0adafb1c02"
+  }
+}

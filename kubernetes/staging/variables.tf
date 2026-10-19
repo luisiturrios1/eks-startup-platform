@@ -5,10 +5,32 @@ variable "platform" {
 
 variable "images" {
   type        = map(object({ repository = string, digest = string }))
-  description = "Verified private ECR image repositories and sha256 digests for every controller."
+  description = "Verified ECR repositories in this environment account/region and sha256 digests for every controller."
+  validation {
+    condition = alltrue([for image in var.images :
+      startswith(image.repository, "${var.platform.account_id}.dkr.ecr.${var.platform.region}.amazonaws.com/") &&
+      can(regex("^[0-9]{12}\\.dkr\\.ecr\\.[a-z0-9-]+\\.amazonaws\\.com/[a-z0-9/_.-]+$", image.repository)) &&
+      can(regex("^sha256:[a-f0-9]{64}$", image.digest))
+    ])
+    error_message = "All controller images must use the environment account/region ECR and an immutable sha256 digest."
+  }
 }
 
 variable "ami_id" {
   type        = string
   description = "Pinned EKS optimized AL2023 x86_64 AMI verified for region and EKS version."
+}
+
+variable "managed_addon_images" {
+  type        = map(list(string))
+  description = "Reviewed exact AWS-managed image references, keyed by kube-system ServiceAccount. Refresh before any managed add-on upgrade."
+  validation {
+    condition = (
+      toset(keys(var.managed_addon_images)) == toset(["aws-node", "kube-proxy", "coredns", "eks-pod-identity-agent"]) &&
+      alltrue([for images in var.managed_addon_images : length(images) > 0 && alltrue([
+        for image in images : can(regex("^[0-9]{12}\\.dkr\\.ecr\\.${var.platform.region}\\.amazonaws\\.com/[a-z0-9/_.-]+(:v[0-9][a-zA-Z0-9_.-]*|@sha256:[a-f0-9]{64})$", image))
+      ])])
+    )
+    error_message = "Supply exact reviewed regional AWS ECR images for all four managed add-on ServiceAccounts; wildcards and public registries are forbidden."
+  }
 }

@@ -114,6 +114,7 @@ def test_telemetry_and_application_isolation(policies):
     assert allows(policies, collector, pod(None, 'identity', ip='169.254.170.23'), 80)
     assert not allows(policies, collector, pod(None, 'internet', ip='1.1.1.1'), 443)
     assert not allows(policies, pod('kube-system', 'karpenter'), runtime, 8443)
+    assert not allows(policies, runtime, runtime, 8443)
 
 
 def test_network_policies_precede_dns_and_controllers_in_every_root():
@@ -122,6 +123,7 @@ def test_network_policies_precede_dns_and_controllers_in_every_root():
             data = hcl2.load(stream, serialization_options=hcl2.utils.SerializationOptions(strip_string_quotes=True, explicit_blocks=False, with_comments=False))
         resources = {f'{kind}.{name}': body for block in data['resource']
                      for kind, names in block.items() for name, body in names.items()}
+        assert resources['helm_release.network']['depends_on'] == ['${helm_release.guardrails}']
         assert resources['aws_eks_addon.coredns']['depends_on'] == ['${helm_release.network}']
         for name in ['cert_manager', 'karpenter', 'load_balancer', 'metrics']:
             assert resources[f'helm_release.{name}']['depends_on'] == ['${aws_eks_addon.coredns}']
@@ -138,3 +140,30 @@ def test_scanner_exception_is_exactly_one_workload():
     assert documents[0]['kind'] == 'DaemonSet'
     assert documents[0]['metadata'] == {'name': 'fluent-bit', 'namespace': 'amazon-cloudwatch'}
     assert str(exceptions[0]['expired_at']) == '2027-01-16'
+
+
+def test_declared_dependencies_require_runtime_on_both_sides():
+    objects = []
+    for service, arguments in [
+        ('payments-service', ['--set', 'dependencies[0]=auth-service']),
+        ('auth-service', ['--set', 'allowedCallers[0]=payments-service']),
+    ]:
+        output = subprocess.check_output(['helm', 'template', 'test', str(ROOT/'charts/service'),
+                                         '--set', 'name='+service, *arguments], text=True)
+        objects.extend(item for item in yaml.safe_load_all(output) if item and item['kind'] == 'NetworkPolicy')
+    source = pod('payments-service', 'payments-service', app='payments-service', role='runtime')
+    target = pod('auth-service', 'auth-service', app='auth-service', role='runtime')
+    assert allows(objects, source, target, 8443)
+    assert not allows(objects, target, source, 8443)
+    assert not allows(objects, {**source, 'labels': {'app': 'payments-service', 'role': 'migration'}}, target, 8443)
+    assert not allows(objects, source, {**target, 'labels': {'app': 'auth-service', 'role': 'migration'}}, 8443)
+    assert not allows(objects, source, {**target, 'labels': {'app': 'unrelated', 'role': 'runtime'}}, 8443)
+    assert not allows(objects, source, target, 8080)
+
+
+def test_empty_ingress_sources_do_not_become_allow_all():
+    output = subprocess.check_output(['helm', 'template', 'test', str(ROOT/'charts/service'),
+                                     '--set-json', 'publicCidrs=[]'], text=True)
+    policies = [item for item in yaml.safe_load_all(output) if item and item['kind'] == 'NetworkPolicy']
+    target = pod('payments-service', 'payments-service', app='payments-service', role='runtime')
+    assert not allows(policies, pod(None, 'arbitrary', ip='1.1.1.1'), target, 8443)

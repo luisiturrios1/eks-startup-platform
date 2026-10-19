@@ -16,6 +16,7 @@ cache_host: ""
 cache_user: ""
 cache_resource: ""
 vpcCidr: 10.40.0.0/16
+serviceCidr: 172.20.0.0/16
 publicCidrs: [10.40.0.0/20, 10.40.16.0/20, 10.40.32.0/20]
 resources:
   requests: {cpu: 250m, memory: 512Mi}
