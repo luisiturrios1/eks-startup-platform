@@ -82,6 +82,8 @@ No production shutdown scheduling, cross-region replication or live provisioning
 
 ## Image promotion details
 
+Application builds and execution use Java 26. Rebuild the complete application image; changing only its runtime tag does not migrate the compilation target. Follow the [Java 26 release and rollback checklist](java26.md), including the end-of-support review, before approving promotion. Both services and their migration Jobs share the new image and must be validated together.
+
 `config/images.lock.json` records upstream controller and base-image digests. Authenticate skopeo to the bootstrap ECR registry using short-lived operator credentials. `scripts/mirror_images.py --repository ACCOUNT.dkr.ecr.REGION.amazonaws.com/platform-artifacts` prints the proposed copies without pushing. Adding `--approved` performs explicit promotion, preserves multi-architecture digests, verifies destination digests, and writes ignored `build/images.auto.tfvars.json`. Pass that file to the Kubernetes root together with exported platform inputs.
 
 Application and credential-manager images are built locally from their Dockerfiles, scanned, and explicitly pushed by the operator. Their resulting ECR digests populate the service contracts and infrastructure `rotation_image_uri`. Never substitute mutable image tags or a public repository to work around private cluster connectivity.

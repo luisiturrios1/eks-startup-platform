@@ -1,6 +1,6 @@
 # Private EKS startup platform
 
-Terraform infrastructure, a validated service DSL, Java 21 / Spring Boot examples, and validation CI without AWS credentials. AWS resources are **not deployed** by this repository's GitHub workflows.
+Terraform infrastructure, a validated service DSL, Java 26 / Spring Boot examples, and validation CI without AWS credentials. AWS resources are **not deployed** by this repository's GitHub workflows.
 
 ## Architecture
 
@@ -39,7 +39,7 @@ flowchart LR
 
 ## Validate without AWS credentials
 
-Prerequisites: Terraform 1.14+, Docker, Helm 3+, Python 3.12+, Java 21. Maven Wrapper is included. `scripts/install_tools.py` installs checksum-pinned TFLint, Trivy, Gitleaks, kind and Infracost into `.artifacts/bin` (macOS ARM64 / Linux AMD64).
+Prerequisites: Terraform 1.14+, Docker, Helm 3+, Python 3.12+, JDK 26. Maven Wrapper is included. Build images, runtime images, Maven target and CI use Java 26; see the [migration, support risk and rollback guide](docs/java26.md). Temurin 26 reached end of community support in September 2026, so production acceptance requires a supported runtime strategy. `scripts/install_tools.py` installs checksum-pinned TFLint, Trivy, Gitleaks, kind and Infracost into `.artifacts/bin` (macOS ARM64 / Linux AMD64).
 
 ```bash
 python3 -m venv .venv

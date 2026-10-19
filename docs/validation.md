@@ -1,8 +1,10 @@
-# Implementation validation — 2026-10-17
+# Implementation validation
 
 This records local evidence, not AWS deployment acceptance. The repository implements the AWS infrastructure, Kubernetes configuration, service contract, credential lifecycle, Java examples and validation-only CI described in README.
 
-## Executed checks
+The sections dated 2026-10-17 and their Java 21 results are historical evidence for the previous release. The Java 26 migration supersedes that contract; see `java26.md` and the 2026-10-18 validation section below for the current change. Earlier passing checks do not establish Java 26 acceptance.
+
+## Executed checks — 2026-10-17
 
 | Check | Result |
 |---|---|
@@ -16,7 +18,7 @@ This records local evidence, not AWS deployment acceptance. The repository imple
 | `examples/apps/mvnw -B -f examples/apps/pom.xml verify` | Passed with Flyway 11.20.3. Includes MiniStack Java Testcontainers integration, both service fixtures against PostgreSQL and MySQL, secret/S3 access, connection-pool credential refresh, migration locking and deliberate migration failure. The expected failed migration is a test assertion, not a build failure. |
 | `PLATFORM_LOCAL_INTEGRATION=1 .venv/bin/pytest -q tests/integration` | 3 passed: database privileges and cross-service denial, credential rotation with overlap, Valkey key isolation. |
 
-Local Maven used host Java 25 with Java 21 compilation target; the container build uses Java 21, and CI explicitly installs Java 21. Helm CLI checks used Helm 4 locally; CI pins Helm 3.19.0 and the Terraform provider uses Helm 3. Private-image rendering checks account for the CLI post-render interface difference.
+Local Maven used host Java 25 with Java 21 compilation target; the container build used Java 21, and CI explicitly installed Java 21 for that release. Helm CLI checks used Helm 4 locally; CI pins Helm 3.19.0 and the Terraform provider uses Helm 3. Private-image rendering checks account for the CLI post-render interface difference.
 
 ## Remaining acceptance and operational review
 
@@ -70,9 +72,9 @@ Design references: [Karpenter tagging boundaries](https://karpenter.sh/v1.15/ref
 
 ## Dependabot integration — 2026-10-17
 
-Integrated the dependency changes from PRs #1–5, #7–13 and #15, preserving their original commits/authors with cherry-pick provenance. PRs #6 and #14 were excluded because their Java 24/26 images violate the Java 21 platform contract. Dependabot ignores those two exact image proposals, and a regression check enforces Java 21 on both container stages.
+Integrated the dependency changes from PRs #1–5, #7–13 and #15, preserving their original commits/authors with cherry-pick provenance. At that time, PRs #6 and #14 were excluded because their Java 24/26 images violated the then-current Java 21 platform contract. The corresponding Dependabot ignores and Java 21 regression check were replaced by the coordinated Java 26 migration on 2026-10-18.
 
-Spring Boot 4.1.1 required the modular MVC/OpenTelemetry starters, Jackson 3 imports, new auto-configuration packages, Testcontainers 2 modules and tracing-export configuration. The examples retain Java 21 and Flyway 11.20.3. Maven Wrapper 3.10.0 has a verified distribution checksum and is used by Docker builds. The credential-manager runtime dependencies match the updated Python test environment, including boto3 1.43.113 and psycopg 3.3.6. Policy parsing explicitly selects python-hcl2 8's compatible unquoted serialization.
+Spring Boot 4.1.1 required the modular MVC/OpenTelemetry starters, Jackson 3 imports, new auto-configuration packages, Testcontainers 2 modules and tracing-export configuration. That release retained Java 21 and Flyway 11.20.3. Maven Wrapper 3.10.0 has a verified distribution checksum and is used by Docker builds. The credential-manager runtime dependencies matched the updated Python test environment, including boto3 1.43.113 and psycopg 3.3.6 at that time. Policy parsing explicitly selects python-hcl2 8's compatible unquoted serialization.
 
 CI now uses registry-verified Linux AMD64 and macOS ARM64 provider hashes, a checksum-verified asset cache with bounded download retries, and secret-free Dependabot cost-input validation. Trusted main/manual runs still perform pricing. No privileged pull-request trigger or AWS provisioning credential was added. The local emulator setup waits for actual SQL readiness before provisioning users.
 
@@ -96,3 +98,23 @@ These updates add no AWS capacity and introduce no deployment step. No AWS plan,
 Dependabot opened PRs #16 and #17 after the component directory was added to its coverage. Both changes were also integrated with cherry-pick provenance: test and runtime requirements now use PyMySQL 1.2.3. Its [upstream changes](https://github.com/PyMySQL/PyMySQL/blob/v1.2.3/CHANGELOG.md) include SQL-escaping fixes and revised TLS negotiation; the production connector still explicitly requires certificate and hostname verification.
 
 After this update, the local Python suite passed 33 tests with three opt-in tests skipped. Three added loopback protocol tests exercise the actual production connector and reject a server without TLS, an untrusted CA with a matching hostname, and a trusted certificate with the wrong hostname before authentication. The three real SQL/Valkey permission and rotation tests passed again on a fresh isolated Docker daemon. Gitleaks and `git diff --check` passed. Both dedicated test daemons and their volumes were then removed; the user's original development containers were preserved.
+
+## Consolidated dependencies and Java 26 — 2026-10-18
+
+PRs #14 and #18–21 are incorporated with cherry-pick provenance. PR #6 is superseded by a Java 26 runtime instead of Java 24. Maven target, CI JDK, build/runtime images, the image lock, policy test and current documentation now agree on Java 26. The Wrapper remains checksum-verified Maven 3.10.0. The runtime manifest digest was verified against Docker Hub; the Maven digest and checkout 7.0.1 commit were independently verified against their upstream registries. See [migration, support risk and rollback](java26.md).
+
+| Check executed for this consolidation | Result |
+|---|---|
+| `PATH="$PWD/.artifacts/bin:$PATH" scripts/validate.sh` | Passed: formatting, contracts for dev/staging/prod, repository policy, seven backend-disabled root initializations/validations, 33 Python tests (three opt-in integration tests skipped), three mocked Terraform plans, Helm lint/render and private-image checks. |
+| `JAVA_HOME=.../jdk-26.0.2.1+1/Contents/Home examples/apps/mvnw -B -f examples/apps/pom.xml clean test` | Two unit/TLS tests passed on checksum-verified Temurin 26.0.2.1. Compiled application bytecode reports major version 70 (Java 26). |
+| `.venv/bin/python -m pytest -q tests` after updating boto3 | 33 passed, three opt-in integration tests skipped. |
+| `.artifacts/bin/tflint --recursive` | Passed. |
+| `uv tool run --python 3.12 checkov -d . --compact -o json` | Terraform: 536 passed, zero failed, 41 existing scoped skips. Dockerfiles: 82 passed, zero failed, two existing scoped health-check skips. Zero parsing errors. |
+| Configured Trivy HIGH/CRITICAL configuration scan and `scripts/scan_manifests.sh` | Passed with existing documented exceptions; this is not a base-image vulnerability scan. |
+| `.artifacts/bin/gitleaks dir . --redact --config .gitleaks.toml` and `git diff --check` | Passed; no leaks found. |
+| `scripts/prepare-assets.sh` and `scripts/estimate_costs.py --validate-only` | Passed. |
+| `.venv/bin/python scripts/estimate_costs.py` | Passed for all three environments. Partial, unadjusted example estimates remain $1,078.28/month each for dev/staging and $1,231.81/month for prod. There are still 79 unspecified usage components, one missing price and the known MySQL model limitation per environment; see `cost.md`. |
+
+Full Java 26 Docker/emulator and kind checks are being completed on a dedicated isolated daemon; their results will be recorded here before this PR is marked ready. Hosted checks must also be inspected separately.
+
+Temurin 26 is EOSL; this remains a production runtime support risk even with passing tests/scans. No new suppression or production security waiver was added. No Terraform resources, IAM permissions, endpoints, state, schema SQL or AWS capacity changed. JVM CPU/memory, image transfer and CI cost changes are unmeasured. No AWS plan, deployment, apply, destroy, state operation or ECR promotion was performed. Production promotion still requires a maintained runtime strategy, environment authorization and reviewed plans.

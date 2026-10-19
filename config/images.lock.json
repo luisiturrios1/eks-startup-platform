@@ -36,12 +36,12 @@
     "digest": "sha256:eb9f94d165f6c83a1ac105a8fd5052a607f3142c549bf6804b1f899c5237a829"
   },
   "maven": {
-    "source": "maven:3.9.11-eclipse-temurin-21",
-    "digest": "sha256:6fdc855a6ed81d288ca7ca37ac6ff5e9308b612485c0801d70b25a858c83d237"
+    "source": "maven:3.9-eclipse-temurin-26",
+    "digest": "sha256:b2c1ad85954592f9928e84327c65201f308ad9b5d8ed7d5b823717c97bf23fbb"
   },
   "java": {
-    "source": "eclipse-temurin:21-jre",
-    "digest": "sha256:ccbad9e7cb84c27092b12c40a4143e5733e050db9c3784d84f632dcf423fb2ef"
+    "source": "eclipse-temurin:26-jre",
+    "digest": "sha256:c7c9e2d412999f6a99d3cd987ed95ce55d9d52e2dcaf8577a9b495077d825c78"
   },
   "lambda": {
     "source": "public.ecr.aws/lambda/python:3.12",
