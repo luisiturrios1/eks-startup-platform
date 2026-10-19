@@ -34,3 +34,13 @@ variable "managed_addon_images" {
     error_message = "Supply exact reviewed regional AWS ECR images for all four managed add-on ServiceAccounts; wildcards and public registries are forbidden."
   }
 }
+
+variable "service_namespaces" {
+  type        = set(string)
+  description = "Application namespaces exported from the validated service contracts. Existing namespaces require a reviewed ownership transition."
+  default     = []
+  validation {
+    condition     = alltrue([for name in var.service_namespaces : can(regex("^[a-z][a-z0-9-]{2,30}$", name)) && !startswith(name, "kube-")])
+    error_message = "Use service namespace names, excluding reserved Kubernetes namespaces."
+  }
+}

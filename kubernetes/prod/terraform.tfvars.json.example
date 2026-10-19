@@ -60,5 +60,9 @@
       "repository": "REPLACE.dkr.ecr.us-east-1.amazonaws.com/platform-artifacts",
       "digest": "sha256:REPLACE"
     }
-  }
+  },
+  "service_namespaces": [
+    "auth-service",
+    "payments-service"
+  ]
 }

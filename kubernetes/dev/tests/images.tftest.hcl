@@ -2,7 +2,8 @@ mock_provider "helm" {}
 mock_provider "aws" {}
 
 variables {
-  ami_id = "ami-00000000000000000"
+  service_namespaces = ["auth-service", "payments-service"]
+  ami_id             = "ami-00000000000000000"
   platform = {
     account_id         = "111111111111", coredns_version = "v1.12.0-eksbuild.1", service_cidr = "172.20.0.0/16",
     cluster_name       = "test", cluster_endpoint = "https://test.eks.amazonaws.com", cluster_ca = "dGVzdA==",
@@ -29,6 +30,14 @@ run "owned_images_and_scoped_exceptions" {
       release.postrender[0].args == tolist(["--registry", "111111111111.dkr.ecr.us-east-1.amazonaws.com"])
     ])
     error_message = "Every third-party/controller Helm release must use the environment registry post-renderer."
+  }
+}
+
+run "contract_namespaces" {
+  command = plan
+  assert {
+    condition     = toset(yamldecode(helm_release.namespaces.values[0]).namespaces) == toset(["auth-service", "payments-service"])
+    error_message = "Terraform must manage the namespaces from the validated contracts."
   }
 }
 

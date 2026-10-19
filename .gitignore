@@ -28,3 +28,7 @@ examples/apps/global-bundle.pem
 components/credential-manager/global-bundle.pem
 
 local/network.generated.json
+
+# Reviewed non-secret region fixtures; all other tfvars remain ignored.
+!examples/local-plan/infrastructure/us-east-1.tfvars
+!examples/local-plan/infrastructure/us-west-2.tfvars

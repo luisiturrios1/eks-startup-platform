@@ -70,3 +70,22 @@ jobs:
         run: |
           if [ -x .artifacts/bin/kind ]; then .artifacts/bin/kind delete cluster --name platform-local; fi
           docker compose down
+
+  local-plans:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
+        with: {python-version: '3.12'}
+      - uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e
+        with: {terraform_version: '1.16.6', terraform_wrapper: false}
+      - run: python -m venv .venv && .venv/bin/pip install -r requirements-dev.txt
+      - run: .venv/bin/python scripts/install_tools.py --tool kind
+      - run: docker compose -f local/plan.compose.yml up -d --wait
+      - run: .artifacts/bin/kind create cluster --name platform-review --image kindest/node:v1.34.0@sha256:7416a61b42b1662ca6ca89f02028ac133a309a2a30ba309614e8ec94d976dc5a
+      - run: .venv/bin/python scripts/local_plan.py
+      - if: always()
+        run: |
+          if [ -x .artifacts/bin/kind ]; then .artifacts/bin/kind delete cluster --name platform-review; fi
+          docker compose -f local/plan.compose.yml down

@@ -4,7 +4,7 @@ ROOT=Path(__file__).resolve().parents[1]
 def test_failed_migration_blocks_application_upgrade(tmp_path):
     commands=tmp_path/'commands'
     for name,body in {
-        'kubectl':'if [ "$1" = config ]; then echo test-context; fi\n',
+        'kubectl':'if [ "$1" = config ]; then echo test-context; else echo restricted; fi\n',
         'helm':'echo "$*" >> "$COMMAND_LOG"\nif [ "$1" = status ]; then exit 0; fi\ncase "$*" in *migrationOnly=true*) exit 1;; esac\n'
     }.items():
         path=tmp_path/name;path.write_text('#!/bin/sh\n'+body);path.chmod(0o755)
@@ -14,3 +14,21 @@ def test_failed_migration_blocks_application_upgrade(tmp_path):
     calls=commands.read_text()
     assert 'migrationOnly=true' in calls
     assert 'upgrade --install payments-service charts/service' not in calls
+
+
+def test_unprotected_namespace_blocks_release_before_helm(tmp_path):
+    commands = tmp_path/'commands'
+    kubectl = tmp_path/'kubectl'
+    kubectl.write_text('#!/bin/sh\nif [ "$1" = config ]; then echo test-context; else echo privileged; fi\n')
+    kubectl.chmod(0o755)
+    helm = tmp_path/'helm'
+    helm.write_text('#!/bin/sh\necho called >> "$COMMAND_LOG"\n')
+    helm.chmod(0o755)
+    values = tmp_path/'values.json'
+    values.write_text(json.dumps({'name': 'payments-service'}))
+    result = subprocess.run(['bash', str(ROOT/'scripts/deploy-service.sh'), '--approved', str(values), 'test-context'],
+                            cwd=ROOT, env=dict(os.environ, PATH=str(tmp_path)+os.pathsep+os.environ['PATH'], COMMAND_LOG=str(commands)),
+                            capture_output=True)
+    assert result.returncode != 0
+    assert b'restricted Pod Security' in result.stderr
+    assert not commands.exists()

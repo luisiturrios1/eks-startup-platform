@@ -1,4 +1,17 @@
 mock_provider "aws" {
+  mock_resource "aws_s3_bucket" {
+    override_during = plan
+    defaults        = { arn = "arn:aws:s3:::review-fixture" }
+  }
+  mock_resource "aws_elasticache_replication_group" {
+    override_during = plan
+    defaults        = { arn = "arn:aws:elasticache:us-east-1:111111111111:replicationgroup:review" }
+  }
+  mock_resource "aws_elasticache_user" {
+    override_during = plan
+    defaults        = { arn = "arn:aws:elasticache:us-east-1:111111111111:user:review" }
+  }
+
   mock_data "aws_caller_identity" { defaults = { account_id = "111111111111" } }
   mock_data "aws_partition" { defaults = { partition = "aws" } }
   mock_data "aws_availability_zones" { defaults = { names = ["us-east-1a", "us-east-1b", "us-east-1c"] } }
@@ -23,6 +36,16 @@ mock_provider "aws" {
     defaults        = { arn = "arn:aws:sqs:us-east-1:111111111111:test" }
   }
   mock_resource "aws_cloudwatch_log_group" { defaults = { arn = "arn:aws:logs:us-east-1:111111111111:log-group:test" } }
+}
+override_resource {
+  target          = aws_s3_bucket.service["payments-service"]
+  override_during = plan
+  values          = { arn = "arn:aws:s3:::payments-fixture" }
+}
+override_resource {
+  target          = aws_s3_bucket.service["auth-service"]
+  override_during = plan
+  values          = { arn = "arn:aws:s3:::auth-fixture" }
 }
 variables {
   availability_zone_ids      = ["use1-az1", "use1-az2", "use1-az4"]
@@ -161,4 +184,30 @@ run "foreign_rotation_image_rejected" {
     rotation_image_uri = "222222222222.dkr.ecr.us-east-1.amazonaws.com/foreign@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
   }
   expect_failures = [var.rotation_image_uri]
+}
+
+run "write_only_storage" {
+  command = plan
+  variables {
+    services = { for name, service in var.services : name => merge(service, {
+      permissions = { s3 = ["write"], cache = false }
+    }) }
+  }
+  assert {
+    condition = alltrue([for item in [
+      { policy = jsondecode(nonsensitive(aws_iam_role_policy.runtime["payments-service"].policy)), bucket = aws_s3_bucket.service["payments-service"].arn },
+      { policy = jsondecode(nonsensitive(aws_iam_role_policy.runtime["auth-service"].policy)), bucket = aws_s3_bucket.service["auth-service"].arn }
+      ] :
+      length([for statement in item.policy.Statement : statement if try(contains(statement.Action, "s3:PutObject"), false) && statement.Resource == "${item.bucket}/*"]) == 1 &&
+      alltrue([for statement in item.policy.Statement :
+        !try(contains(statement.Action, "s3:GetObject"), statement.Action == "s3:GetObject") &&
+        !try(contains(statement.Action, "s3:ListBucket"), statement.Action == "s3:ListBucket") &&
+        !try(contains(statement.Action, "s3:DeleteObject"), statement.Action == "s3:DeleteObject") &&
+        !try(contains(statement.Action, "s3:*"), statement.Action == "s3:*") &&
+        statement.Resource != "*" &&
+        alltrue([for action in flatten([statement.Action]) : contains(["s3:PutObject", "secretsmanager:GetSecretValue", "secretsmanager:DescribeSecret", "kms:Decrypt", "kms:GenerateDataKey"], action)])
+      ])
+    ])
+    error_message = "Write-only services may only put objects in their own bucket; no read, list, delete or wildcard grants."
+  }
 }

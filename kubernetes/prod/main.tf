@@ -113,3 +113,15 @@ resource "helm_release" "platform" {
     args        = ["--registry", "${var.platform.account_id}.dkr.ecr.${var.platform.region}.amazonaws.com"]
   }
 }
+
+# Namespace ownership belongs to this root, before application releases.
+resource "helm_release" "namespaces" {
+  name      = "platform-service-namespaces"
+  namespace = "kube-system"
+  chart     = "../../charts/namespaces"
+  values    = [yamlencode({ namespaces = var.service_namespaces })]
+  wait      = true
+  atomic    = true
+  lifecycle { prevent_destroy = true }
+  depends_on = [helm_release.guardrails]
+}

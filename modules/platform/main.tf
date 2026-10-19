@@ -616,7 +616,42 @@ resource "aws_eks_pod_identity_association" "telemetry" {
 resource "aws_iam_role_policy" "runtime" {
   for_each = var.services
   role     = aws_iam_role.runtime[each.key].id
-  policy   = jsonencode({ Version = "2012-10-17", Statement = concat([{ Effect = "Allow", Action = ["secretsmanager:GetSecretValue", "secretsmanager:DescribeSecret"], Resource = concat([aws_secretsmanager_secret.runtime[each.key].arn], each.value.secretReferences) }, { Effect = "Allow", Action = "kms:Decrypt", Resource = aws_kms_key.platform.arn, Condition = { StringEquals = { "kms:ViaService" = "secretsmanager.${var.region}.amazonaws.com" } } }], [for statement in [{ Effect = "Allow", Action = "s3:ListBucket", Resource = try(aws_s3_bucket.service[each.key].arn, "") }, { Effect = "Allow", Action = concat(contains(each.value.permissions.s3, "read") ? ["s3:GetObject"] : [], contains(each.value.permissions.s3, "write") ? ["s3:PutObject"] : []), Resource = "${try(aws_s3_bucket.service[each.key].arn, "")}/*" }, { Effect = "Allow", Action = ["kms:Decrypt", "kms:GenerateDataKey"], Resource = aws_kms_key.platform.arn, Condition = { StringEquals = { "kms:ViaService" = "s3.${var.region}.amazonaws.com" } } }] : statement if length(each.value.permissions.s3) > 0], each.value.permissions.cache ? [{ Effect = "Allow", Action = "elasticache:Connect", Resource = [aws_elasticache_replication_group.this[0].arn, aws_elasticache_user.service[each.key].arn] }] : []) })
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = concat([
+      {
+        Effect   = "Allow"
+        Action   = ["secretsmanager:GetSecretValue", "secretsmanager:DescribeSecret"]
+        Resource = concat([aws_secretsmanager_secret.runtime[each.key].arn], each.value.secretReferences)
+      },
+      {
+        Effect    = "Allow"
+        Action    = "kms:Decrypt"
+        Resource  = aws_kms_key.platform.arn
+        Condition = { StringEquals = { "kms:ViaService" = "secretsmanager.${var.region}.amazonaws.com" } }
+      }
+      ], [for statement in [
+        {
+          Effect = "Allow"
+          Action = concat(
+            contains(each.value.permissions.s3, "read") ? ["s3:GetObject"] : [],
+            contains(each.value.permissions.s3, "write") ? ["s3:PutObject"] : []
+          )
+          Resource = "${try(aws_s3_bucket.service[each.key].arn, "")}/*"
+        },
+        {
+          Effect = "Allow"
+          # Decrypt remains necessary for S3 Bucket Keys; it does not grant GetObject.
+          Action    = concat(["kms:Decrypt"], contains(each.value.permissions.s3, "write") ? ["kms:GenerateDataKey"] : [])
+          Resource  = aws_kms_key.platform.arn
+          Condition = { StringEquals = { "kms:ViaService" = "s3.${var.region}.amazonaws.com" } }
+        }
+        ] : statement if length(each.value.permissions.s3) > 0], each.value.permissions.cache ? [{
+        Effect   = "Allow"
+        Action   = "elasticache:Connect"
+        Resource = [aws_elasticache_replication_group.this[0].arn, aws_elasticache_user.service[each.key].arn]
+    }] : [])
+  })
 }
 
 resource "aws_iam_role_policy" "migration" {
